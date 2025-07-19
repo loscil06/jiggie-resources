@@ -4,3 +4,4 @@ hypsometric map: https://www.shadertoy.com/view/4lSczc
 map painting: https://www.shadertoy.com/view/NsfBz8
 warping: https://www.shadertoy.com/view/tdG3Rd
 liquid gradient: https://www.shadertoy.com/view/dsXyzf
+voronoi gradient: https://www.shadertoy.com/view/WdlyRS
