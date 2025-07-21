@@ -10,8 +10,8 @@ from wgpu_shadertoy import Shadertoy
 import sys
 from pathlib import Path
 
-# Preset gradients
-GRADIENTS = {
+# Preset gradients separated by color count
+GRADIENTS_2 = {
     "fireandice": ["#ff1b6b", "#45caff"],
     "cyberpunk": ["#40c9ff", "#e81cff"],
     "bubblegum": ["#df89b5", "#bfd9fe"],
@@ -29,6 +29,8 @@ GRADIENTS = {
     "virgin": ["#FFAFBD", "#C9FFBF"],
     "earthly": ["#DBD5A4", "#649173"],
     "misty_lagoon": ["#e4e4d9", "#215f00"],
+}
+GRADIENTS_3 = {
     "mermaid_dream": ["#84ffc9", "#aab2ff", "#d084ff"],
     "heatwave": ["#833AB4", "#FD1D1D", "#FCB045"],
     "mintberry": ["#5AFF15", "#AAFFE5", "#9D75CB"],
@@ -176,10 +178,28 @@ def render_liquid_gradient_shader_background(width, height, colors):
     color1 = f"vec3({color1_f[0]:.3f}, {color1_f[1]:.3f}, {color1_f[2]:.3f})"
     color2 = f"vec3({color2_f[0]:.3f}, {color2_f[1]:.3f}, {color2_f[2]:.3f})"
 
-    breakpoint()
-
     code = template.render(color1=color1, color2=color2, seed=random.uniform(1, 10000))
     shader = Shadertoy(code, common=common_code, resolution=(width, height), offscreen=True)
+    return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
+
+
+def render_voronoi_gradient_shader_background(width, height, colors):
+    if not isinstance(colors, (list, tuple)) or len(colors) != 2:
+        raise ValueError("render_liquid_gradient_shader_background requires exactly two colors.")
+
+    template_path = resource_path("shaders", "voronoi_gradient", "main_voronoi_gradient.glsl.j2")
+    with template_path.open("r") as f:
+        template = Template(f.read())
+
+    color1_rgb = hex_to_rgb(colors[0])
+    color2_rgb = hex_to_rgb(colors[1])
+    color1_f = rgb_to_float(color1_rgb)
+    color2_f = rgb_to_float(color2_rgb)
+    color1 = f"vec3({color1_f[0]:.3f}, {color1_f[1]:.3f}, {color1_f[2]:.3f})"
+    color2 = f"vec3({color2_f[0]:.3f}, {color2_f[1]:.3f}, {color2_f[2]:.3f})"
+
+    code = template.render(color1=color1, color2=color2, seed=random.uniform(1, 10))
+    shader = Shadertoy(code, resolution=(width, height), offscreen=True)
     return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
 
 
@@ -404,7 +424,7 @@ def parse_orientation(value):
 @click.option("--orientation", "-o", default="vertical",
               help="Gradient orientation: 'vertical' (90°), 'horizontal' (0°), 'diagonal' (45°), 'diagonal-reverse' (135°), or custom angle (0-360)")
 @click.option("--style", default="gradient",
-              type=click.Choice(['gradient', 'liquid', 'topographic'], case_sensitive=False),
+              type=click.Choice(['gradient', 'liquid', 'voronoi', 'topographic'], case_sensitive=False),
               help="Background style: gradient (linear/barycentric), liquid (liquid gradient), or topographic (map-like)")
 @click.option("--shader-scale", default=0.8, type=float,
               help="Shader pattern scale (default: 0.8)")
@@ -465,8 +485,11 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
             preset_name = "custom"
             if len(colors) not in [2, 3]:
                 raise click.BadParameter("Custom gradient must have 2 or 3 colors")
-        elif gradient in GRADIENTS:
-            colors = GRADIENTS[gradient]
+        elif gradient in GRADIENTS_2:
+            colors = GRADIENTS_2[gradient]
+            preset_name = gradient
+        elif gradient in GRADIENTS_3:
+            colors = GRADIENTS_3[gradient]
             preset_name = gradient
         else:
             raise click.BadParameter(f"Unknown gradient: '{gradient}'")
@@ -496,8 +519,13 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
 
                 if not current_colors and not gradient:
                     # Pick a random gradient for this image
-                    current_preset = random.choice(list(GRADIENTS.keys()))
-                    current_colors = GRADIENTS[current_preset]
+                    if style == "gradient":
+                        # Pick randomly from both 2 and 3 color gradients
+                        all_gradients = list(GRADIENTS_2.items()) + list(GRADIENTS_3.items())
+                    else:
+                        # For shader styles, only use 2-color gradients
+                        all_gradients = list(GRADIENTS_2.items())
+                    current_preset, current_colors = random.choice(all_gradients)
 
                 # Determine output filename
                 output = f"{base}_output_{current_preset}.png"
@@ -516,13 +544,26 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                 match style:
                     case "liquid":
                         print("   └── Rendering liquid gradient background...")
+                        if len(current_colors) != 2:
+                            raise click.BadParameter("Liquid gradient style requires exactly 2 colors.")
                         gradient_img = render_liquid_gradient_shader_background(
+                            img.width,
+                            img.height,
+                            current_colors,
+                        )
+                    case "voronoi":
+                        print("   └── Rendering Voronoi gradient background...")
+                        if len(current_colors) != 2:
+                            raise click.BadParameter("Voronoi gradient style requires exactly 2 colors.")
+                        gradient_img = render_voronoi_gradient_shader_background(
                             img.width,
                             img.height,
                             current_colors,
                         )
                     case "topographic":
                         print("   └── Rendering topographic background...")
+                        if len(current_colors) not in [2, 3]:
+                            raise click.BadParameter("Topographic style requires 2 or 3 colors.")
                         gradient_img = render_topographic_background(
                             img.width,
                             img.height,
