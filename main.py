@@ -160,6 +160,12 @@ def resource_path(*relative_parts):
     return base_path.joinpath(*relative_parts)
 
 
+def rgb_to_vec3_glsl(rgb):
+    """Format an RGB tuple as GLSL vec3 with three decimals."""
+    f = rgb_to_float(rgb)
+    return f"vec3({f[0]:.3f}, {f[1]:.3f}, {f[2]:.3f})"
+
+
 def render_liquid_gradient_shader_background(width, height, colors):
     if not isinstance(colors, (list, tuple)) or len(colors) != 2:
         raise ValueError("render_liquid_gradient_shader_background requires exactly two colors.")
@@ -171,12 +177,8 @@ def render_liquid_gradient_shader_background(width, height, colors):
     with template_path.open("r") as f:
         template = Template(f.read())
 
-    color1_rgb = hex_to_rgb(colors[0])
-    color2_rgb = hex_to_rgb(colors[1])
-    color1_f = rgb_to_float(color1_rgb)
-    color2_f = rgb_to_float(color2_rgb)
-    color1 = f"vec3({color1_f[0]:.3f}, {color1_f[1]:.3f}, {color1_f[2]:.3f})"
-    color2 = f"vec3({color2_f[0]:.3f}, {color2_f[1]:.3f}, {color2_f[2]:.3f})"
+    color1 = rgb_to_vec3_glsl(hex_to_rgb(colors[0]))
+    color2 = rgb_to_vec3_glsl(hex_to_rgb(colors[1]))
 
     code = template.render(color1=color1, color2=color2, seed=random.uniform(1, 10000))
     shader = Shadertoy(code, common=common_code, resolution=(width, height), offscreen=True)
@@ -191,37 +193,30 @@ def render_voronoi_gradient_shader_background(width, height, colors):
     with template_path.open("r") as f:
         template = Template(f.read())
 
-    color1_rgb = hex_to_rgb(colors[0])
-    color2_rgb = hex_to_rgb(colors[1])
-    color1_f = rgb_to_float(color1_rgb)
-    color2_f = rgb_to_float(color2_rgb)
-    color1 = f"vec3({color1_f[0]:.3f}, {color1_f[1]:.3f}, {color1_f[2]:.3f})"
-    color2 = f"vec3({color2_f[0]:.3f}, {color2_f[1]:.3f}, {color2_f[2]:.3f})"
+    color1 = rgb_to_vec3_glsl(hex_to_rgb(colors[0]))
+    color2 = rgb_to_vec3_glsl(hex_to_rgb(colors[1]))
 
     code = template.render(color1=color1, color2=color2, seed=random.uniform(1, 10))
     shader = Shadertoy(code, resolution=(width, height), offscreen=True)
     return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
 
 
-def render_topographic_background(width, height, colors, scale=1.0):
+def render_topographic_shader_background(width, height, colors, scale=1.0):
     """Render topographic shader background using wgpu-shadertoy"""
     shader_colors = derive_topographic_colors(colors)
 
-    # Create shader instance
-    shader = Shadertoy(
-        "",
-        resolution=(width, height),
-        offscreen=True
-    )
+    template_path = resource_path("shaders", "topographic", "main_topographic_shader.glsl.j2")
+    with template_path.open("r") as f:
+        template = Template(f.read())
 
-    # Set uniforms directly on the shader object
-    shader.uniforms = {
-        "u_scale": scale
-    }
+    color_1 = rgb_to_vec3_glsl(shader_colors[0])
+    color_2 = rgb_to_vec3_glsl(shader_colors[1])
+    color_3 = rgb_to_vec3_glsl(shader_colors[2])
+    color_4 = rgb_to_vec3_glsl(shader_colors[3])
 
-    # Capture at time=0
-    snapshot = shader.snapshot(time_float=0.0)
-    return Image.fromarray(np.asarray(snapshot))
+    code = template.render(color_1=color_1, color_2=color_2, color_3=color_3, color_4=color_4, seed=random.uniform(1, 1200))
+    shader = Shadertoy(code, resolution=(width, height), offscreen=True)
+    return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
 
 
 def create_linear_gradient(width, height, colors, angle=90):
@@ -519,11 +514,11 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
 
                 if not current_colors and not gradient:
                     # Pick a random gradient for this image
-                    if style == "gradient":
+                    if style in {"gradient", "topographic"}:
                         # Pick randomly from both 2 and 3 color gradients
                         all_gradients = list(GRADIENTS_2.items()) + list(GRADIENTS_3.items())
                     else:
-                        # For shader styles, only use 2-color gradients
+                        # For certain shader styles, only use 2-color gradients
                         all_gradients = list(GRADIENTS_2.items())
                     current_preset, current_colors = random.choice(all_gradients)
 
@@ -562,9 +557,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                         )
                     case "topographic":
                         print("   └── Rendering topographic background...")
-                        if len(current_colors) not in [2, 3]:
-                            raise click.BadParameter("Topographic style requires 2 or 3 colors.")
-                        gradient_img = render_topographic_background(
+                        gradient_img = render_topographic_shader_background(
                             img.width,
                             img.height,
                             current_colors,
