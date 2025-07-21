@@ -231,7 +231,6 @@ def render_spiral_shader_background(width, height, colors):
     color_2 = rgb_to_vec3_glsl(hex_to_rgb(colors[1]))
 
     code = template.render(color_1=color_1, color_2=color_2)
-    breakpoint()
     shader = Shadertoy(code, resolution=(width, height), offscreen=True)
     return Image.fromarray(np.asarray(shader.snapshot(time_float=1)))
 
@@ -461,12 +460,10 @@ def parse_orientation(value):
               help="Background style: gradient (linear/barycentric), liquid (liquid gradient), spiral, topographic (map-like), or squiggle")
 @click.option("--shader-scale", default=0.8, type=float,
               help="Shader pattern scale (default: 0.8)")
-@click.option("--shader-speed", default=0.3, type=float,
-              help="Shader animation speed (default: 0.3)")
 @click.argument("imagefiles", nargs=-1, type=click.Path(exists=True))
 def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
          median_radius, only_transparent, orientation, style,
-         shader_scale, shader_speed, imagefiles):
+         shader_scale, imagefiles):
     """
     🎨 GRADIENTIFY - Replace backgrounds with beautiful gradients 🎨
 
@@ -483,24 +480,23 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
 
     Style Options:
     --style gradient:     Linear or barycentric gradient (default)
-    --style shader:       Organic animated patterns
+    --style liquid:       Organic liquid-like gradient
     --style topographic:  Topographic map-like patterns
+    --style spiral:       Spiral shader background
+    --style voronoi:      Voronoi diagram shader background
+    --style squiggle:     Squiggle shader background
 
-    Shader Mode:
-    --shader-scale:       Pattern scale (0.5-2.0, default: 0.8)
-    --shader-speed:       Animation speed (0.0-1.0, default: 0.3)
-    --debug-shader:       Open visible browser for debugging
-    --save-shader-html:   Save generated shader HTML to file
+    Recommended to use transparent PNGs for best results.
 
     Examples:
     1. Use topographic background with sunset gradient:
-       gradientify.py --style topographic --gradient sunset image.png
+       gradientify.py --style topographic --gradient -ot sunset image.png
 
-    2. Debug organic shader:
-       gradientify.py --style shader --gradient heatwave --debug-shader logo.png
+    2. Gradient style with custom colors:
+       gradientify.py --gradient #4159d0,#c84fc0,#ffcd70 -ot image.png
 
     3. Custom topographic parameters:
-       gradientify.py --style topographic --gradient oceanbliss photo.jpg
+       gradientify.py --style topographic --gradient oceanbliss -ot photo.jpg
     """
     # Process files
     if not imagefiles:
