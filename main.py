@@ -240,7 +240,7 @@ def render_squiggle_shader_background(width, height, colors):
     shader_colors = derive_topographic_colors(colors)
     random.shuffle(shader_colors)
 
-    template_path = resource_path("shaders", "squiggle", "squiggle_main_shader.glsl.j2")
+    template_path = resource_path("shaders", "squiggle", "main_squiggle_shader.glsl.j2")
     with template_path.open("r") as f:
         template = Template(f.read())
 
