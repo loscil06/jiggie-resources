@@ -1,0 +1,83 @@
+/// options
+#define Arms          6.
+#define directiON     1.   // opposite direction would be -1.0
+#define windiNG       .3
+
+#define zoOM          ( 8./8. )
+#define useRotation   0    // 1 means rotate it ! 
+
+/*
+ *   logarithmic spiral with N arms
+ *
+ *   it's kinda inexact and everything,
+ *   somehow better with more arms i think.
+ *   maybe someone can optimize it...
+ *
+ *   calculation for arm index:
+ *   armIndex = mod( floor( a - ( b ) ), n );  // n is number of Arms, a & b is in the function
+ *   
+ *   calculation for distance in arm (mod for repeating):
+ *   armDistance = mod( floor( a + ( b ) ), n );  // instead of n can use any number
+ *
+ *   ( aladiN )
+ *
+ */
+
+/// helpers
+const float tau  = atan( 1. )*8.;
+const float pi   = tau/2.;
+const float tauq = tau/4.;
+#define col C.rgb
+#define res iResolution.xy
+#define N( p ) ( ( 1./zoOM )*( p - res/2. )/min( res.y, res.x ) )
+#define rot( a ) mat2( cos( a*tau + vec4( 0., tauq, 3.*tauq, 0. ) ) )
+
+float sdLogSpiralArms(
+    vec2 p,
+    float n,      // number of arms
+    float dir,   // direction of the spiral ( +1.0 or -1.0 )
+    float e )   // some winding factor
+{
+    float r = length( p );
+    float theta = atan( p.y, p.x );
+    float a = n*e*log( r );
+    float b = dir*n*theta/tau;
+    //float armIndex = mod( floor( a - ( b ) ), n );
+    float m = fract( a - b ) - .5;   // in [ -0.5, +0.5 ]
+    float grad = n*e/r/1. + 1./( tau*r );  // well...
+    return ( abs( m ) - .25 )/grad;  // basically the .25 is the thickness of the arms
+}
+
+
+void mainImage( out vec4 C, in vec2 POS ) {
+
+    /// centering coords
+    vec2 p = N( POS );
+
+    /// rotation
+    #if ( useRotation != 0 )
+    p *= rot( iTime/5. );
+    #endif
+
+    /// distance of the log spiral arms
+    float d = sdLogSpiralArms( p, Arms, directiON, windiNG );
+
+    /// uncomment the following
+    //float d2 = sdLogSpiralArms( p, Arms, -directiON, windiNG );
+    //d = max( d, d2 );
+
+    /// i copied iq's coloring
+    col = (d>0.0) ? {{ color_1 }} : {{ color_2 }};
+    col *= 1.0 - exp(-5.0*abs(d));
+    col *= 2. + 0.4*cos(555.0*abs(d));
+    col = mix( col, vec3(1.), 1.0-smoothstep( 0., 2./res.y, abs(d) ) );
+
+    /// FordPerfect's suggestion to add the yellow measuring thing...
+    /// thanks ;)
+    vec2 m = N( iMouse.xy );
+    d = sdLogSpiralArms( m, Arms, directiON, windiNG );
+    col = mix(col,vec3(1,1,0),smoothstep(2./res.y,0.0,abs(length(p-m)-abs(d))));
+
+    C = vec4(col, 1.0);
+}
+    

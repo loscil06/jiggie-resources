@@ -219,6 +219,23 @@ def render_topographic_shader_background(width, height, colors, scale=1.0):
     return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
 
 
+def render_spiral_shader_background(width, height, colors):
+    if not isinstance(colors, (list, tuple)) or len(colors) != 2:
+        raise ValueError("render_spiral_shader_background requires exactly two colors.")
+
+    template_path = resource_path("shaders", "spiral", "main_spiral_shader.glsl.j2")
+    with template_path.open("r") as f:
+        template = Template(f.read())
+
+    color_1 = rgb_to_vec3_glsl(hex_to_rgb(colors[0]))
+    color_2 = rgb_to_vec3_glsl(hex_to_rgb(colors[1]))
+
+    code = template.render(color_1=color_1, color_2=color_2)
+    breakpoint()
+    shader = Shadertoy(code, resolution=(width, height), offscreen=True)
+    return Image.fromarray(np.asarray(shader.snapshot(time_float=1)))
+
+
 def create_linear_gradient(width, height, colors, angle=90):
     """Create linear gradient with customizable angle"""
     img = Image.new('RGB', (width, height))
@@ -419,8 +436,8 @@ def parse_orientation(value):
 @click.option("--orientation", "-o", default="vertical",
               help="Gradient orientation: 'vertical' (90°), 'horizontal' (0°), 'diagonal' (45°), 'diagonal-reverse' (135°), or custom angle (0-360)")
 @click.option("--style", default="gradient",
-              type=click.Choice(['gradient', 'liquid', 'voronoi', 'topographic'], case_sensitive=False),
-              help="Background style: gradient (linear/barycentric), liquid (liquid gradient), or topographic (map-like)")
+              type=click.Choice(['gradient', 'liquid', 'voronoi', 'topographic', 'spiral'], case_sensitive=False),
+              help="Background style: gradient (linear/barycentric), liquid (liquid gradient), spiral, or topographic (map-like)")
 @click.option("--shader-scale", default=0.8, type=float,
               help="Shader pattern scale (default: 0.8)")
 @click.option("--shader-speed", default=0.3, type=float,
@@ -542,6 +559,15 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                         if len(current_colors) != 2:
                             raise click.BadParameter("Liquid gradient style requires exactly 2 colors.")
                         gradient_img = render_liquid_gradient_shader_background(
+                            img.width,
+                            img.height,
+                            current_colors,
+                        )
+                    case "spiral":
+                        print("   └── Rendering spiral shader background...")
+                        if len(current_colors) != 2:
+                            raise click.BadParameter("Spiral shader style requires exactly 2 colors.")
+                        gradient_img = render_spiral_shader_background(
                             img.width,
                             img.height,
                             current_colors,
