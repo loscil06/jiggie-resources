@@ -2,13 +2,13 @@ import click
 import os
 import random
 import math
-import base64
 import colorsys
 import numpy as np
-from io import BytesIO
+from jinja2 import Template
 from PIL import Image, ImageDraw, ImageColor, ImageFilter
 from wgpu_shadertoy import Shadertoy
-
+import sys
+from pathlib import Path
 
 # Preset gradients
 GRADIENTS = {
@@ -48,226 +48,24 @@ ORIENTATIONS = {
     "diagonal-reverse": 135
 }
 
-ORGANIC_SHADER_TEMPLATE = """
-// Organic animated glow shader
-uniform vec3 iColor1;
-uniform vec3 iColor2;
-uniform vec3 iColor3;
-
-vec2 hash(vec2 p) {
-    p = vec2(dot(p, vec2(127.1, 311.7)),
-             dot(p, vec2(269.5, 183.3)));
-    return -1.0 + 2.0 * fract(sin(p) * 43758.5453123);
-}
-
-float noise(vec2 p) {
-    const float K1 = 0.366025404;
-    const float K2 = 0.211324865;
-
-    vec2 i = floor(p + (p.x + p.y) * K1);
-    vec2 a = p - i + (i.x + i.y) * K2;
-    vec2 o = (a.x > a.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
-    vec2 b = a - o + K2;
-    vec2 c = a - 1.0 + 2.0 * K2;
-
-    vec3 h = max(0.5 - vec3(dot(a,a), dot(b,b), dot(c,c)), 0.0);
-    vec3 n = h * h * h * h * vec3(
-        dot(a, hash(i + 0.0)),
-        dot(b, hash(i + o)),
-        dot(c, hash(i + 1.0))
-    );
-
-    return dot(n, vec3(70.0));
-}
-
-float fbm(vec2 p){
-  float a = .5;
-  float n = 0.;
-  for(float i=0.; i<8.; i++){
-    n += a * noise(p);
-    p *= 2.;
-    a *= .5;
-  }
-  return n;
-}
-
-mat2 rotate(float a){
-  float s = sin(a);
-  float c = cos(a);
-  return mat2(c,-s,s,c);
-}
-
-vec3 glow(float v, float r, float ins, vec3 col){
-  float dist = pow(r/v,ins);
-  return 1.-exp(-dist*col);
-}
-
-void mainImage(out vec4 O, in vec2 I){
-  vec2 R = iResolution.xy;
-  vec2 uv = (I*2.-R)/R.y;
-  O.rgb = vec3(0);
-  O.a = 1.;
-
-  uv *= 2.;
-  vec2 p = uv;
-
-  float l = length(uv)-iTime*0.3;
-  p*=rotate(l);
-
-  float n = noise(uv);
-  p += n*.5;
-
-  vec3 c1 = iColor1;
-  vec3 c2 = iColor2;
-  vec3 c3 = iColor3;
-
-  n = fbm(p*0.4);
-  O.rgb = glow(n, 0.2, 2., c1);
-
-  n = fbm(p*0.2*rotate(.1));
-  c2 = glow(n, 0.3, 2., c2);
-
-  O.rgb *= c2;
-}
-"""
-
-TOPOGRAPHIC_SHADER_CODE = """
-precision highp float;
-
-// Declare uniforms with binding points
-layout(binding = 0) uniform vec3 u_color1;
-layout(binding = 1) uniform vec3 u_color2;
-layout(binding = 2) uniform vec3 u_color3;
-layout(binding = 3) uniform vec3 u_color4;
-layout(binding = 4) uniform float u_scale;
-
-#define u_resolution iResolution.xy
-
-#define M_PI 3.1415926535897932384626433832795
-
-float dot2( in vec2 v ) { return dot(v,v); }
-float ndot( in vec2 a, in vec2 b ) { return a.x*b.x - a.y*b.y; }
-
-vec2 random2(vec2 st){
-    st = vec2(dot(st,vec2(127.1,311.7)), dot(st,vec2(269.5,183.3)));
-    return -1.0 + 2.0 * fract(sin(st) * 43758.5453);
-}
-
-float noise2(vec2 st) {
-    vec2 i = floor(st);
-    vec2 f = fract(st);
-    vec2 u = f*f*(3.0-2.0*f);
-
-    vec2 r00 = random2(i + vec2(0.0,0.0));
-    vec2 r10 = random2(i + vec2(1.0,0.0));
-    vec2 r01 = random2(i + vec2(0.0,1.0));
-    vec2 r11 = random2(i + vec2(1.0,1.0));
-
-    float a = mix( dot(r00, f - vec2(0.0,0.0)),
-                   dot(r10, f - vec2(1.0,0.0)), u.x);
-    float b = mix( dot(r01, f - vec2(0.0,1.0)),
-                   dot(r11, f - vec2(1.0,1.0)), u.x);
-    return mix(a, b, u.y);
-}
-
-float fbm2(vec2 coord) {
-    float value = 0.0;
-    float scale = 0.5;
-    for (int i = 0; i < 4; i++) {
-        value += noise2(coord) * scale;
-        coord *= 2.0;
-        scale *= 0.5;
-    }
-    return value + 0.2;
-}
-
-#define NUM_COLORS 4
-const float stepSize = 0.02;
-const float epsilon = 0.001;
-// FIXED: Precomputed constant values
-const float invIdxMult = 4.0 * stepSize * 3.0;  // NUM_COLORS is 4
-
-float height(vec2 pixel) {
-    return pow(fbm2(pixel * 0.0072), 1.248);
-}
-
-float plateau(float h) {
-    return floor(h / stepSize);
-}
-
-float contour(vec2 p, float dx) {
-    vec3 d = vec3(dx, 0.0, -dx);
-    float h = plateau(height(p));
-
-    float a = 0.0;
-    a += plateau(height(p + d.xy));
-    a += plateau(height(p + d.yx));
-    a += plateau(height(p + d.zy));
-    a += plateau(height(p + d.yz));
-    a += plateau(height(p + d.xx));
-    a += plateau(height(p + d.zz));
-    a += plateau(height(p + d.xz));
-    a += plateau(height(p + d.zx));
-
-    return smoothstep(0.0, epsilon, abs(a / 8.0 - h));
-}
-
-vec3 landform(vec2 p) {
-    float h = plateau(height(p));
-    // FIXED: Avoid runtime constant expression
-    float index = clamp(h * invIdxMult, 0.0, 3.0);  // NUM_COLORS-1 = 3
-    int i = int(index);
-    float m = fract(index);  // Equivalent to mod(index, 1.0)
-
-    // Create color array directly
-    vec3 color0 = u_color1;
-    vec3 color1 = u_color2;
-    vec3 color2 = u_color3;
-    vec3 color3 = u_color4;
-
-    if (i == 0) return mix(color0, color1, m);
-    if (i == 1) return mix(color1, color2, m);
-    if (i == 2) return mix(color2, color3, m);
-    return color3;
-}
-
-const float scaler = 0.485;
-const float contourStroke = 0.38;
-
-#define CONTOUR 1
-vec3 shade(vec2 p) {
-    #if CONTOUR
-    vec3 ctColor = vec3(0.1);
-    float ct = contour(p, contourStroke * scaler);
-    return mix(landform(p), ctColor, ct);
-    #else
-    return landform(p);
-    #endif
-}
-
-#define AA 0
-
-void mainImage( out vec4 fragColor, in vec2 fragCoord ) {
-    vec2 I = fragCoord;
-    vec2 p = I * u_scale * scaler;
-    vec3 accum = shade(p);
-    fragColor = vec4(accum, 1.0);
-}
-"""
 
 def hex_to_rgb(hex_color):
     return ImageColor.getrgb(hex_color)
 
+
 def rgb_to_float(rgb):
-    return tuple(c/255.0 for c in rgb)
+    return tuple(c / 255.0 for c in rgb)
+
 
 def rgb_to_hsl(rgb):
-    r, g, b = [x/255.0 for x in rgb]
+    r, g, b = [x / 255.0 for x in rgb]
     return colorsys.rgb_to_hls(r, g, b)
+
 
 def hsl_to_rgb(h, l, s):
     r, g, b = colorsys.hls_to_rgb(h, l, s)
-    return (int(r*255), int(g*255), int(b*255))
+    return int(r * 255), int(g * 255), int(b * 255)
+
 
 def generate_vibrant_midcolor(rgb1, rgb2):
     h1, l1, s1 = rgb_to_hsl(rgb1)
@@ -286,6 +84,7 @@ def generate_vibrant_midcolor(rgb1, rgb2):
     s_mid = (s1 + s2) / 2.0
     return hsl_to_rgb(h_mid, min(l_mid, 1.0), s_mid)
 
+
 def derive_shader_colors(base_colors):
     base_rgb = [hex_to_rgb(c) for c in base_colors]
 
@@ -295,6 +94,7 @@ def derive_shader_colors(base_colors):
         return [color1, color2, color3]
     else:
         return base_rgb[:3]
+
 
 def derive_topographic_colors(base_colors):
     """
@@ -325,30 +125,63 @@ def derive_topographic_colors(base_colors):
         # Use first 4 colors
         return base_rgb[:4]
 
+
 def adjust_lightness(rgb, percent):
     """Adjust lightness of color in HSL space"""
-    r, g, b = [x/255.0 for x in rgb]
+    r, g, b = [x / 255.0 for x in rgb]
     h, l, s = colorsys.rgb_to_hls(r, g, b)
-    new_l = max(0.0, min(1.0, l + percent/100.0))
+    new_l = max(0.0, min(1.0, l + percent / 100.0))
     r, g, b = colorsys.hls_to_rgb(h, new_l, s)
-    return (int(r*255), int(g*255), int(b*255))
+    return int(r * 255), int(g * 255), int(b * 255)
+
 
 def mix_colors(rgb1, rgb2, factor):
     """Mix two RGB colors with given factor (0.0-1.0)"""
     r1, g1, b1 = rgb1
     r2, g2, b2 = rgb2
-    r = int(r1*(1-factor) + r2*factor)
-    g = int(g1*(1-factor) + g2*factor)
-    b = int(b1*(1-factor) + b2*factor)
-    return (r, g, b)
+    r = int(r1 * (1 - factor) + r2 * factor)
+    g = int(g1 * (1 - factor) + g2 * factor)
+    b = int(b1 * (1 - factor) + b2 * factor)
+    return r, g, b
+
 
 def render_shader_background(width, height, colors, scale=1.0, time_speed=0.5):
-    shader_colors = derive_shader_colors(colors)
-    code = ORGANIC_SHADER_TEMPLATE
-    for i, rgb in enumerate(shader_colors):
-        code = code.replace(f"iColor{i+1}", f"vec3({rgb[0]/255.0:.4f}, {rgb[1]/255.0:.4f}, {rgb[2]/255.0:.4f})")
-    shader = Shadertoy(code, resolution=(width, height), offscreen=True)
+    pass
+
+
+def resource_path(*relative_parts):
+    """Get absolute path to resource, works for dev and for PyInstaller."""
+    if hasattr(sys, '_MEIPASS'):
+        base_path = Path(sys._MEIPASS)
+    else:
+        base_path = Path(__file__).resolve().parent
+    return base_path.joinpath(*relative_parts)
+
+
+def render_liquid_gradient_shader_background(width, height, colors):
+    if not isinstance(colors, (list, tuple)) or len(colors) != 2:
+        raise ValueError("render_liquid_gradient_shader_background requires exactly two colors.")
+
+    common_path = resource_path("shaders", "liquid_gradient", "common_liquid_gradient.glsl")
+    with common_path.open("r") as f:
+        common_code = f.read()
+    template_path = resource_path("shaders", "liquid_gradient", "main_liquid_gradient.glsl.j2")
+    with template_path.open("r") as f:
+        template = Template(f.read())
+
+    color1_rgb = hex_to_rgb(colors[0])
+    color2_rgb = hex_to_rgb(colors[1])
+    color1_f = rgb_to_float(color1_rgb)
+    color2_f = rgb_to_float(color2_rgb)
+    color1 = f"vec3({color1_f[0]:.3f}, {color1_f[1]:.3f}, {color1_f[2]:.3f})"
+    color2 = f"vec3({color2_f[0]:.3f}, {color2_f[1]:.3f}, {color2_f[2]:.3f})"
+
+    breakpoint()
+
+    code = template.render(color1=color1, color2=color2, seed=random.uniform(1, 10000))
+    shader = Shadertoy(code, common=common_code, resolution=(width, height), offscreen=True)
     return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
+
 
 def render_topographic_background(width, height, colors, scale=1.0):
     """Render topographic shader background using wgpu-shadertoy"""
@@ -356,7 +189,7 @@ def render_topographic_background(width, height, colors, scale=1.0):
 
     # Create shader instance
     shader = Shadertoy(
-        TOPOGRAPHIC_SHADER_CODE,
+        "",
         resolution=(width, height),
         offscreen=True
     )
@@ -366,14 +199,10 @@ def render_topographic_background(width, height, colors, scale=1.0):
         "u_scale": scale
     }
 
-    # Add color uniforms
-    for i, color in enumerate(shader_colors[:4], 1):
-        r, g, b = rgb_to_float(color)
-        shader.uniforms[f"u_color{i}"] = [r, g, b]
-
     # Capture at time=0
     snapshot = shader.snapshot(time_float=0.0)
     return Image.fromarray(np.asarray(snapshot))
+
 
 def create_linear_gradient(width, height, colors, angle=90):
     """Create linear gradient with customizable angle"""
@@ -417,6 +246,7 @@ def create_linear_gradient(width, height, colors, angle=90):
 
     return img
 
+
 def create_barycentric_gradient(width, height, colors):
     """Create barycentric gradient with 3 color points"""
     img = Image.new('RGB', (width, height))
@@ -450,6 +280,7 @@ def create_barycentric_gradient(width, height, colors):
 
     return img
 
+
 def refine_mask(alpha_channel, close_radius=2, median_radius=1):
     """
     Refine the alpha mask using morphological operations and median filtering
@@ -469,6 +300,7 @@ def refine_mask(alpha_channel, close_radius=2, median_radius=1):
     # Median filter to smooth edges
     median_size = median_radius * 2 + 1
     return eroded.filter(ImageFilter.MedianFilter(median_size))
+
 
 def remove_background(img, bg_color, fuzziness, refine=False, close_radius=2, median_radius=1, only_transparent=False):
     """
@@ -506,7 +338,7 @@ def remove_background(img, bg_color, fuzziness, refine=False, close_radius=2, me
             r, g, b, a_orig = item
 
             # Calculate distance from background color
-            distance_sq = (bg_rgb[0] - r)**2 + (bg_rgb[1] - g)**2 + (bg_rgb[2] - b)**2
+            distance_sq = (bg_rgb[0] - r) ** 2 + (bg_rgb[1] - g) ** 2 + (bg_rgb[2] - b) ** 2
 
             # Preserve existing transparency by default
             new_alpha = a_orig
@@ -535,6 +367,7 @@ def remove_background(img, bg_color, fuzziness, refine=False, close_radius=2, me
 
     return img
 
+
 def parse_orientation(value):
     """Convert orientation input to angle in degrees"""
     if isinstance(value, int):
@@ -549,6 +382,7 @@ def parse_orientation(value):
         return angle % 360
     except ValueError:
         raise ValueError(f"Invalid orientation: {value}. Must be integer or one of: {list(ORIENTATIONS.keys())}")
+
 
 @click.command()
 @click.option("--fuzziness", default=1, type=click.IntRange(1, 100),
@@ -570,8 +404,8 @@ def parse_orientation(value):
 @click.option("--orientation", "-o", default="vertical",
               help="Gradient orientation: 'vertical' (90°), 'horizontal' (0°), 'diagonal' (45°), 'diagonal-reverse' (135°), or custom angle (0-360)")
 @click.option("--style", default="gradient",
-              type=click.Choice(['gradient', 'shader', 'topographic'], case_sensitive=False),
-              help="Background style: gradient (linear/barycentric), shader (organic patterns), or topographic (map-like)")
+              type=click.Choice(['gradient', 'liquid', 'topographic'], case_sensitive=False),
+              help="Background style: gradient (linear/barycentric), liquid (liquid gradient), or topographic (map-like)")
 @click.option("--shader-scale", default=0.8, type=float,
               help="Shader pattern scale (default: 0.8)")
 @click.option("--shader-speed", default=0.3, type=float,
@@ -618,8 +452,8 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     # Process files
     if not imagefiles:
         imagefiles = [f for f in os.listdir()
-                    if f.lower().endswith(('.png', '.jpg', '.jpeg'))
-                    and "_output_" not in f]
+                      if f.lower().endswith(('.png', '.jpg', '.jpeg'))
+                      and "_output_" not in f]
 
     # Validate gradient input
     colors = None
@@ -678,34 +512,32 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                 mode = "TRANSPARENT-ONLY" if only_transparent else "NORMAL"
                 print(f"🔧 Processing {path} [{mode}] with gradient: {current_preset} ({style} style)...")
 
-
                 # Create background based on style
-                if style == "shader":
-                    print("   └── Rendering organic shader background...")
-                    gradient_img = render_shader_background(
-                        img.width,
-                        img.height,
-                        current_colors,
-                        scale=shader_scale,
-                        time_speed=shader_speed,
-                    )
-                elif style == "topographic":
-                    print("   └── Rendering topographic background...")
-                    gradient_img = render_topographic_background(
-                        img.width,
-                        img.height,
-                        current_colors,
-                        scale=shader_scale,
-                    )
-                elif len(current_colors) == 2:
-                    gradient_img = create_linear_gradient(
-                        img.width, img.height, current_colors, angle
-                    )
-                else:
-                    print("   └── Note: Orientation ignored for 3-color gradients")
-                    gradient_img = create_barycentric_gradient(
-                        img.width, img.height, current_colors
-                    )
+                match style:
+                    case "liquid":
+                        print("   └── Rendering liquid gradient background...")
+                        gradient_img = render_liquid_gradient_shader_background(
+                            img.width,
+                            img.height,
+                            current_colors,
+                        )
+                    case "topographic":
+                        print("   └── Rendering topographic background...")
+                        gradient_img = render_topographic_background(
+                            img.width,
+                            img.height,
+                            current_colors,
+                            scale=shader_scale,
+                        )
+                    case "gradient" if len(current_colors) == 2:
+                        gradient_img = create_linear_gradient(
+                            img.width, img.height, current_colors, angle
+                        )
+                    case "gradient":
+                        print("   └── Note: Orientation ignored for 3-color gradients")
+                        gradient_img = create_barycentric_gradient(
+                            img.width, img.height, current_colors
+                        )
 
                 # Process background based on mode
                 transparent_img = remove_background(
@@ -730,8 +562,9 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                     print(f"   └── Applied mask refinement (close: {close_radius}, median: {median_radius})")
 
         except Exception as e:
-            print(f"❌ Error processing {path}: {str(e)}")
+            print(f"�� Error processing {path}: {str(e)}")
             raise e
+
 
 if __name__ == "__main__":
     main()

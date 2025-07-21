@@ -1,4 +1,20 @@
-opencv-python==4.8.1.78
-numpy==1.26.4
-click==8.1.7
-python-dateutil==2.8.2  # (required by matplotlib if used)
+certifi==2025.7.14
+cffi==1.17.1
+charset-normalizer==3.4.2
+click==8.2.1
+glfw==2.9.0
+idna==3.10
+Jinja2==3.1.6
+MarkupSafe==3.0.2
+numpy==2.3.1
+opencv-python==4.12.0.88
+pillow==11.3.0
+pycparser==2.22
+python-dateutil==2.9.0.post0
+requests==2.32.4
+rubicon-objc==0.5.1
+six==1.17.0
+sniffio==1.3.1
+urllib3==2.5.0
+wgpu==0.23.0
+wgpu-shadertoy==0.2.0
