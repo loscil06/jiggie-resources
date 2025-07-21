@@ -1,0 +1,76 @@
+#define T iTime
+
+const float SHAPE_SPEED = 0.4;
+const float GRID_SIZE   = 4.0;
+const float SDF_SPEED   = 0.3;
+const float RADIUS      = 0.3;
+const float UV_SPEED    = 0.05;
+
+
+// Color palette
+const vec3 COLOR1 = {{ color1 }};
+const vec3 COLOR2 = {{ color2 }};
+const vec3 COLOR4 = {{ color3 }};
+const vec3 COLOR3 = {{ color4 }};
+
+
+struct AnimationPattern {
+    vec2 direction;
+    vec3 color;
+};
+
+AnimationPattern getAnimationPattern(float id)
+{
+    float idx = mod(id, 8.0);
+
+    if (idx == 0.0) return AnimationPattern(vec2(0.0, SDF_SPEED), COLOR1);
+    if (idx == 1.0) return AnimationPattern(vec2(-SDF_SPEED, 0.0), COLOR2);
+    if (idx == 2.0) return AnimationPattern(vec2(SDF_SPEED, 0.0), COLOR3);
+    if (idx == 3.0) return AnimationPattern(vec2(0.0, SDF_SPEED), COLOR4);
+    if (idx == 4.0) return AnimationPattern(vec2(-SDF_SPEED, 0.0), COLOR1);
+    if (idx == 5.0) return AnimationPattern(vec2(SDF_SPEED, 0.0), COLOR2);
+    if (idx == 6.0) return AnimationPattern(vec2(0.0, SDF_SPEED), COLOR3);
+    if (idx == 7.0) return AnimationPattern(vec2(-SDF_SPEED, 0.0), COLOR4);
+
+    return AnimationPattern(vec2(0.0), {{ random_color }});
+}
+
+mat2 rotate2D(float angle) { return mat2(cos(angle), -sin(angle),  sin(angle), cos(angle));}
+
+float sdfCircle(vec2 cell, float radius) {
+
+    float w = 1.0 / iResolution.y;
+    float d1 = smoothstep(1.0, 0.7, cell.x) - 1.0 + smoothstep(0.0,0.3, cell.x);
+    float d2 = abs(cell.x);
+    return 0.326 / (d1 * d2 + 0.001);
+}
+
+
+void mainImage( out vec4 O, in vec2 I )
+{
+    vec2 uv = (2.0 * I - iResolution.xy)/iResolution.y;
+    const float iSeed = {{ seed }}; // seed should be between 1 and 10
+    uv = rotate2D(iSeed) * uv;
+    uv.y += T * 0.15;
+
+    uv.y += sin(uv.x * 5.5 + T * SHAPE_SPEED * 0.8) * 0.2
+    + sin((uv.x + uv.x) * 5.0 - T * SHAPE_SPEED * 1.2) * 0.15
+    + cos(uv.x * 4.0 + T * SHAPE_SPEED) * 0.25
+    + 0.1;
+
+    uv.x += sin(uv.x * 5.0 + T * SHAPE_SPEED) * 0.05
+    + cos(uv.y * 10.0 - T * SHAPE_SPEED) * 0.05
+    + sin((uv.x + uv.y) * 5.0) * 0.1;
+
+    vec2 cell = fract(uv * GRID_SIZE);
+
+    float id = floor(uv.x * GRID_SIZE);
+    AnimationPattern pattern = getAnimationPattern(id);
+    vec2 animatedUV = uv + pattern.direction * T;
+
+    float dist = sdfCircle(cell, RADIUS);
+    vec3 shape = mix(vec3(0.0),pattern.color, dist);
+
+    vec3 color = shape; //vec3(d1);
+    O = vec4(color,1.0);
+}

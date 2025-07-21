@@ -236,6 +236,27 @@ def render_spiral_shader_background(width, height, colors):
     return Image.fromarray(np.asarray(shader.snapshot(time_float=1)))
 
 
+def render_squiggle_shader_background(width, height, colors):
+    shader_colors = derive_topographic_colors(colors)
+    random.shuffle(shader_colors)
+
+    template_path = resource_path("shaders", "squiggle", "squiggle_main_shader.glsl.j2")
+    with template_path.open("r") as f:
+        template = Template(f.read())
+
+    randomized_colors = {
+        f"color{n+1}": rgb_to_vec3_glsl(c) for n, c in enumerate(shader_colors)
+    }
+
+    code = template.render(
+        **randomized_colors,
+        random_color=random.choice(list(randomized_colors.values())),
+        seed=random.uniform(1, 10)
+    )
+    shader = Shadertoy(code, resolution=(width, height), offscreen=True)
+    return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
+
+
 def create_linear_gradient(width, height, colors, angle=90):
     """Create linear gradient with customizable angle"""
     img = Image.new('RGB', (width, height))
@@ -436,8 +457,8 @@ def parse_orientation(value):
 @click.option("--orientation", "-o", default="vertical",
               help="Gradient orientation: 'vertical' (90°), 'horizontal' (0°), 'diagonal' (45°), 'diagonal-reverse' (135°), or custom angle (0-360)")
 @click.option("--style", default="gradient",
-              type=click.Choice(['gradient', 'liquid', 'voronoi', 'topographic', 'spiral'], case_sensitive=False),
-              help="Background style: gradient (linear/barycentric), liquid (liquid gradient), spiral, or topographic (map-like)")
+              type=click.Choice(['gradient', 'liquid', 'voronoi', 'topographic', 'spiral', 'squiggle'], case_sensitive=False),
+              help="Background style: gradient (linear/barycentric), liquid (liquid gradient), spiral, topographic (map-like), or squiggle")
 @click.option("--shader-scale", default=0.8, type=float,
               help="Shader pattern scale (default: 0.8)")
 @click.option("--shader-speed", default=0.3, type=float,
@@ -531,7 +552,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
 
                 if not current_colors and not gradient:
                     # Pick a random gradient for this image
-                    if style in {"gradient", "topographic"}:
+                    if style in {"gradient", "topographic", "squiggle"}:
                         # Pick randomly from both 2 and 3 color gradients
                         all_gradients = list(GRADIENTS_2.items()) + list(GRADIENTS_3.items())
                     else:
@@ -583,6 +604,8 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                         )
                     case "topographic":
                         print("   └── Rendering topographic background...")
+                        if len(current_colors) > 4:
+                            raise click.BadParameter("Topographic shader style requires 2, 3, or 4 colors.")
                         gradient_img = render_topographic_shader_background(
                             img.width,
                             img.height,
@@ -597,6 +620,16 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                         print("   └── Note: Orientation ignored for 3-color gradients")
                         gradient_img = create_barycentric_gradient(
                             img.width, img.height, current_colors
+                        )
+                    case "squiggle":
+                        print("   └── Rendering squiggle shader background...")
+                        # Use 4 colors for squiggle, derive if needed
+                        if len(current_colors) > 4:
+                            raise click.BadParameter("Squiggle shader style requires 2, 3, or 4 colors.")
+                        gradient_img = render_squiggle_shader_background(
+                            img.width,
+                            img.height,
+                            current_colors,
                         )
 
                 # Process background based on mode
