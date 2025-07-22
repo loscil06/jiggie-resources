@@ -11,6 +11,9 @@ import sys
 from pathlib import Path
 import json
 
+# Supported styles
+STYLES = ['gradient', 'liquid', 'voronoi', 'topographic', 'spiral', 'squiggle', 'mesh']
+
 # Preset gradients separated by color count
 GRADIENTS_2 = {
     "fireandice": ["#ff1b6b", "#45caff"],
@@ -257,6 +260,30 @@ def render_squiggle_shader_background(width, height, colors):
     return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
 
 
+def render_mesh_gradient_shader_background(width, height, colors):
+    # Use topographic color derivation for mesh gradient
+    shader_colors = derive_topographic_colors(colors)
+
+    template_path = resource_path("shaders", "mesh_gradient", "main_mesh_gradient_shader.glsl.j2")
+    with template_path.open("r") as f:
+        template = Template(f.read())
+
+    color1 = rgb_to_vec3_glsl(shader_colors[0])
+    color2 = rgb_to_vec3_glsl(shader_colors[1])
+    color3 = rgb_to_vec3_glsl(shader_colors[2])
+    color4 = rgb_to_vec3_glsl(shader_colors[3])
+
+    code = template.render(
+        color1=color1,
+        color2=color2,
+        color3=color3,
+        color4=color4,
+        seed=random.uniform(1, 400)
+    )
+    shader = Shadertoy(code, resolution=(width, height), offscreen=True)
+    return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
+
+
 def create_linear_gradient(width, height, colors, angle=90):
     """Create linear gradient with customizable angle"""
     img = Image.new('RGB', (width, height))
@@ -457,8 +484,8 @@ def parse_orientation(value):
 @click.option("--orientation", "-o", default="vertical",
               help="Gradient orientation: 'vertical' (90°), 'horizontal' (0°), 'diagonal' (45°), 'diagonal-reverse' (135°), or custom angle (0-360)")
 @click.option("--style", default="gradient",
-              type=click.Choice(['gradient', 'liquid', 'voronoi', 'topographic', 'spiral', 'squiggle'], case_sensitive=False),
-              help="Background style: gradient (linear/barycentric), liquid (liquid gradient), spiral, topographic (map-like), or squiggle")
+              type=click.Choice(STYLES, case_sensitive=False),
+              help=f"Background style: {', '.join(STYLES)} (default: gradient)")
 @click.option("--shader-scale", default=0.8, type=float,
               help="Shader pattern scale (default: 0.8)")
 @click.option("--user-gradients", type=click.Path(exists=True, dir_okay=False),
@@ -473,14 +500,14 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     🎨 GRADIENTIFY - Replace backgrounds with beautiful gradients 🎨
 
     Features:
-    - Multiple background styles: gradient, shader, topographic
+    - Multiple background styles: gradient, shader, topographic, spiral, voronoi, squiggle, mesh
     - Two processing modes: normal background removal OR transparent-only replacement
     - Preserves all colored pixels in --only-transparent mode
     - Handles images with existing transparency
-    - 26 preset gradients with 2-3 colors
-    - Custom gradient support
-    - User-defined gradients from JSON file (see --user-gradients)
-    - Option to combine user gradients with built-in presets (--combine-presets/--only-user)
+    - 2-color and 3-color preset gradients
+    - Custom gradient support (e.g. --gradient "#ff0000,#00ff00")
+    - User-defined gradients from JSON file (--user-gradients)
+    - Option to combine user gradients with built-in presets (--combine-presets/--only-user-gradients)
     - Adjustable background detection sensitivity
     - Intelligent mask refinement
     - Batch processing with overwrite protection
@@ -492,15 +519,16 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     --style spiral:       Spiral shader background
     --style voronoi:      Voronoi diagram shader background
     --style squiggle:     Squiggle shader background
+    --style mesh:         Mesh gradient shader (2 or 3 colors, smooth mesh-like blend)
 
     User-defined gradients:
     --user-gradients FILE    Path to a JSON file with gradients in the format:
-                            {
-                                "mytwocolor": ["#123456", "#abcdef"],
-                                "mythreecolor": ["#ff0000", "#00ff00", "#0000ff"]
-                            }
-    --combine-presets       Combine user gradients with built-in presets (default)
-    --only-user-gradients   Use only user gradients, ignore built-in presets
+                                {
+                                    "mytwocolor": ["#123456", "#abcdef"],
+                                    "mythreecolor": ["#ff0000", "#00ff00", "#0000ff"]
+                                }
+    --combine-presets           Combine user gradients with built-in presets (default)
+    --only-user-gradients       Use only user gradients, ignore built-in presets
 
     Recommended to use transparent PNGs for best results.
 
@@ -519,6 +547,9 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
 
     5. Custom topographic parameters:
        gradientify.py --style topographic --gradient oceanbliss -ot photo.jpg
+
+    6. Mesh style shader with 2 or 3 colors:
+       gradientify.py --style mesh --gradient "#ff0000,#00ff00,#0000ff" image.png
     """
     # Process files
     if not imagefiles:
@@ -667,6 +698,15 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                         if len(current_colors) > 4:
                             raise click.BadParameter("Squiggle shader style requires 2, 3, or 4 colors.")
                         gradient_img = render_squiggle_shader_background(
+                            img.width,
+                            img.height,
+                            current_colors,
+                        )
+                    case "mesh":
+                        print("   └── Rendering mesh gradient shader background...")
+                        if len(current_colors) not in [2, 3]:
+                            raise click.BadParameter("Mesh gradient style requires 2 or 3 colors.")
+                        gradient_img = render_mesh_gradient_shader_background(
                             img.width,
                             img.height,
                             current_colors,

@@ -77,27 +77,33 @@ python main.py --style liquid --gradient fireandice -ot image1.png image2.jpg
 
 ### Background Styles
 
-1. **Gradient** (Linear/Barycentric):
+1. **Linear/Barycentric (Gradient)** :
 Creates smooth color transitions. Supports linear (2 colors) and barycentric (3 colors) gradients.
 ![Alt gradient example](./doc/alpha-ykk-transparent_output_cyberpunk.png)
 
-2. **Liquid**:
+2. **Mesh (Gradient)**:
+Creates complex, multi-color transitions across a shape by creating a grid of random nodes. Supports 2-3 colors.
+![Alt mesh example](./doc/5_output_goldenlagoon_mesh.png)
+
+3. **Liquid**:
 Organic, flowing patterns that simulate liquid movements. Requires exactly 2 colors.
 ![Alt liquid example](./doc/rin-touhou-transparent_output_spicy_sunset_liquid.png)
 
-3. **Voronoi**:
-Cellular patterns based on Voronoi diagrams. Creates a geometric, tech-inspired look... If you really squint your eyes.
+4. **Voronoi**:
+Cellular patterns based on Voronoi diagrams. Creates a geometric, tech-inspired look.
 ![Alt voronoi example](./doc/1_output_bubblegum_voronoi.png)
 
-4. **Topographic**:
+5. **Topographic**:
 Contour map-like patterns that simulate elevation. Works best with 2-4 colors.
 ![Alt voronoi example](./doc/2_output_weddingdayblues_topographic.png)
-5. **Spiral**:
+
+6. **Spiral**:
 Hypnotic spiral patterns that create visual depth. Requires exactly 2 colors.
 ![Alt voronoi example](./doc/3_output_skymint_spiral.png)
-6. **Squiggle**:
+
+7. **Squiggle**:
 Playful squiggly line patterns that add artistic flair. Supports 2-4 colors.
-   ![Alt voronoi example](./doc/4_output_goldenlagoon_squiggle.png)
+![Alt voronoi example](./doc/4_output_goldenlagoon_squiggle.png)
 
 ### Advanced Options
 ```text
