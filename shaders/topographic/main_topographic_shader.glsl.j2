@@ -48,7 +48,7 @@ const float invIdxMult = float(NUM_COLORS) * stepSize * 3.0;
 
 // introduce randomness here
 float height(vec2 pixel) {
-    return pow(fbm2(pixel * 0.0072 + vec2(134.1, 826.0) + iSeed), 1.248);
+    return pow(fbm2(pixel * 0.002 + vec2(134.1, 826.0) + iSeed), 1.248);
 }
 
 float plateau(float h) {
