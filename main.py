@@ -9,6 +9,7 @@ from PIL import Image, ImageDraw, ImageColor, ImageFilter
 from wgpu_shadertoy import Shadertoy
 import sys
 from pathlib import Path
+import json
 
 # Preset gradients separated by color count
 GRADIENTS_2 = {
@@ -460,10 +461,14 @@ def parse_orientation(value):
               help="Background style: gradient (linear/barycentric), liquid (liquid gradient), spiral, topographic (map-like), or squiggle")
 @click.option("--shader-scale", default=0.8, type=float,
               help="Shader pattern scale (default: 0.8)")
+@click.option("--user-gradients", type=click.Path(exists=True, dir_okay=False),
+              help="Path to a JSON file with user-defined gradients (format: {name: [hex, ...], ...})")
+@click.option("--combine-presets/--only-user-gradients", default=True,
+              help="Combine script presets with user gradients (default: combine)")
 @click.argument("imagefiles", nargs=-1, type=click.Path(exists=True))
 def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
          median_radius, only_transparent, orientation, style,
-         shader_scale, imagefiles):
+         shader_scale, imagefiles, user_gradients, combine_presets):
     """
     🎨 GRADIENTIFY - Replace backgrounds with beautiful gradients 🎨
 
@@ -474,6 +479,8 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     - Handles images with existing transparency
     - 26 preset gradients with 2-3 colors
     - Custom gradient support
+    - User-defined gradients from JSON file (see --user-gradients)
+    - Option to combine user gradients with built-in presets (--combine-presets/--only-user)
     - Adjustable background detection sensitivity
     - Intelligent mask refinement
     - Batch processing with overwrite protection
@@ -486,6 +493,15 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     --style voronoi:      Voronoi diagram shader background
     --style squiggle:     Squiggle shader background
 
+    User-defined gradients:
+    --user-gradients FILE    Path to a JSON file with gradients in the format:
+                            {
+                                "mytwocolor": ["#123456", "#abcdef"],
+                                "mythreecolor": ["#ff0000", "#00ff00", "#0000ff"]
+                            }
+    --combine-presets       Combine user gradients with built-in presets (default)
+    --only-user-gradients   Use only user gradients, ignore built-in presets
+
     Recommended to use transparent PNGs for best results.
 
     Examples:
@@ -495,7 +511,13 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     2. Gradient style with custom colors:
        gradientify.py --gradient #4159d0,#c84fc0,#ffcd70 -ot image.png
 
-    3. Custom topographic parameters:
+    3. Use only user gradients from a JSON file:
+       gradientify.py --user-gradients mygrads.json --only-user-gradients --gradient mytwocolor image.png
+
+    4. Combine user gradients with presets (default)(chosen randomly but will either user presets or user provided gradients):
+       gradientify.py --user-gradients mygrads.json image.png
+
+    5. Custom topographic parameters:
        gradientify.py --style topographic --gradient oceanbliss -ot photo.jpg
     """
     # Process files
@@ -508,17 +530,41 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     colors = None
     preset_name = None
 
+    # Load user gradients if provided
+    user_gradients_2 = {}
+    user_gradients_3 = {}
+    if user_gradients:
+        with open(user_gradients, "r") as f:
+            user_gradients_dict = json.load(f)
+        for name, icolors in user_gradients_dict.items():
+            if len(icolors) == 2:
+                user_gradients_2[name] = icolors
+            elif len(icolors) == 3:
+                user_gradients_3[name] = icolors
+
+    # Combine or replace presets
+    if user_gradients:
+        if combine_presets:
+            all_gradients_2 = {**GRADIENTS_2, **user_gradients_2}
+            all_gradients_3 = {**GRADIENTS_3, **user_gradients_3}
+        else:
+            all_gradients_2 = user_gradients_2
+            all_gradients_3 = user_gradients_3
+    else:
+        all_gradients_2 = GRADIENTS_2
+        all_gradients_3 = GRADIENTS_3
+
     if gradient:
         if gradient.startswith("#"):
             colors = gradient.split(",")
             preset_name = "custom"
             if len(colors) not in [2, 3]:
                 raise click.BadParameter("Custom gradient must have 2 or 3 colors")
-        elif gradient in GRADIENTS_2:
-            colors = GRADIENTS_2[gradient]
+        elif gradient in all_gradients_2:
+            colors = all_gradients_2[gradient]
             preset_name = gradient
-        elif gradient in GRADIENTS_3:
-            colors = GRADIENTS_3[gradient]
+        elif gradient in all_gradients_3:
+            colors = all_gradients_3[gradient]
             preset_name = gradient
         else:
             raise click.BadParameter(f"Unknown gradient: '{gradient}'")
@@ -549,11 +595,9 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                 if not current_colors and not gradient:
                     # Pick a random gradient for this image
                     if style in {"gradient", "topographic", "squiggle"}:
-                        # Pick randomly from both 2 and 3 color gradients
-                        all_gradients = list(GRADIENTS_2.items()) + list(GRADIENTS_3.items())
+                        all_gradients = list(all_gradients_2.items()) + list(all_gradients_3.items())
                     else:
-                        # For certain shader styles, only use 2-color gradients
-                        all_gradients = list(GRADIENTS_2.items())
+                        all_gradients = list(all_gradients_2.items())
                     current_preset, current_colors = random.choice(all_gradients)
 
                 # Determine output filename
@@ -651,7 +695,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                     print(f"   └── Applied mask refinement (close: {close_radius}, median: {median_radius})")
 
         except Exception as e:
-            print(f"�� Error processing {path}: {str(e)}")
+            print(f" Error processing {path}: {str(e)}")
             raise e
 
 

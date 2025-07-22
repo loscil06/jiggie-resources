@@ -14,9 +14,9 @@ Features
 
     🔄 Batch processing: Process multiple images at once
 
-    🏷️ Preset gradients: Choose from 26 professionally designed color schemes
+    🏷️ Preset gradients: Choose from a vast range of (semi)professionally designed color schemes
 
-    🎚️ Custom gradients: Pass your own color combinations
+    🎚️ User Provided or Custom gradients: Pass your own color combinations or even have your own library of gradients
 
     📐 Orientation control: Adjust gradient direction
 
@@ -132,6 +132,31 @@ or squiggle
 --shader-scale FLOAT            Shader pattern scale (default: 1)
 --help                          Show this message and exit.
 ```
+
+### User Provided Gradients
+You can provide your own gradients using the following JSON format:
+```json
+{
+    "my_custom_gradient_2": ["#ff0000", "#00ff00"],
+    "my_custom_gradient_3": ["#ff0000", "#00ff00", "#0000ff"]
+}
+```
+
+Then, you can pass your custom gradients passing this JSON file using the `--user-gradients` option:
+```bash
+python main.py --user-gradients mypresets.json --gradient my_custom_gradient_2 image.png
+```
+
+When you let the script choose random gradients, you can choose between either combine them with script's preset gradients or to only use your gradients by passing either `--combine-presets` or `--only-user-gradients` respectively:
+```bash
+# Leaving it defaults to combine both, although you can also use --combine-presets to be explicit
+python main.py image.png -ot
+
+# Only use your gradients
+python main.py --only-user-gradients image.png -ot
+```
+
+Currently, the program supports only 2-3 color gradients.
 
 Contribution
 

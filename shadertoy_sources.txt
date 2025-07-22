@@ -5,3 +5,4 @@ map painting: https://www.shadertoy.com/view/NsfBz8
 warping: https://www.shadertoy.com/view/tdG3Rd
 liquid gradient: https://www.shadertoy.com/view/dsXyzf
 voronoi gradient: https://www.shadertoy.com/view/WdlyRS
+squiggle: https://www.shadertoy.com/view/wXGGzt
