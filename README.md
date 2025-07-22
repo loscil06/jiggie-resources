@@ -40,7 +40,7 @@ pip install -r requirements.txt
 ## Important notes
 It's highly recommended your images to be in PNG format and have already transparency. While the script can handle images without transparency with solid color backgrounds, the script will not be able to accurately remove the background in most cases. For best results, use images with transparent backgrounds. Below some recommendations how to make your images transparent:
 1. **Use a photo editing tool**: Open your image in software like Photoshop, GIMP, Krita or an online editor. Use the magic wand or lasso tool to select the background and delete it, leaving a transparent layer.
-2. **Use an online background remover**: Websites like `withoutbg.com` or `pixlr.com can automatically remove backgrounds from images, making them transparent. Note: some of these websites have limitations on how many you can process per day. Personally, withoutbg.com is my favorite.
+2. **Use an online background remover**: Websites like `withoutbg.com` or `pixlr.com` can automatically remove backgrounds from images, making them transparent. Note: some of these websites have limitations on how many you can process per day. Personally, `withoutbg.com` is my favorite.
 3. **Ask the original creator**: If you have access to the original image files, ask the creator to provide a version with a transparent background.
 4. Once you have your images with transparency, use the tool with the `--only-transparent`  or `-ot` option to replace only the transparent areas with gradients or patterns.
 
