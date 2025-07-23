@@ -6,7 +6,7 @@ Features
 
     🎨 Multiple background styles: Linear gradients, liquid effects, topographic maps, spirals and more
 
-    ✨ Smart background removal: Remove backgrounds with adjustable sensitivity
+    ✨ AI Cutout: Remove backgrounds from images. Powered by [rembg](https://github.com/danielgatis/rembg)
 
     🖼️ Transparency support: Preserve existing transparency or replace only transparent areas
 
@@ -95,12 +95,12 @@ python main.py --style liquid --gradient fireandice -ot image1.png image2.jpg
 
 ## Background Styles
 
-1. **Linear/Barycentric (Gradient)** :
+1. **Linear/Barycentric (Gradient)**:
 Creates smooth color transitions. Supports linear (2 colors) and barycentric (3 colors) gradients.
 ![Alt gradient example](./doc/alpha-ykk-transparent_output_cyberpunk.png)
 
 2. **Mesh (Gradient)**:
-Creates complex, multi-color transitions across a shape by creating a grid of random nodes. Supports 2-3 colors.
+Creates complex, multicolor transitions across a shape by creating a grid of random nodes. Supports 2-3 colors.
 ![Alt mesh example](./doc/5_output_goldenlagoon_mesh.png)
 
 3. **Liquid**:
