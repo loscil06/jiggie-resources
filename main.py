@@ -599,7 +599,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
             f for f in os.listdir()
             if f.lower().endswith(('.png', '.jpg', '.jpeg'))
             and "_output_" not in f  # <-- Do not process already processed images
-            and "_transparent" not in f  # <-- Do not process transparent images
+            and (only_transparent or "_transparent" not in f)  # <-- Do not process transparent images
         ]
 
     # Validate gradient input
@@ -652,7 +652,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
         raise click.BadParameter(str(e))
 
     rembg_session = None
-    if ai_cutout:
+    if ai_cutout and not only_transparent and not dumb_cutout:
         if ai_model:
             rembg_session = new_session(model_name=ai_model)
         else:
@@ -781,7 +781,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                         )
 
                 # Process background based on mode
-                if not dumb_cutout and ai_cutout and rembg_session:
+                if rembg_session:
                     print(f"   └── Using AI-based background removal using model: {ai_model}...")
                     # Check for existing transparent image
                     if os.path.exists(transparent_path):

@@ -40,12 +40,12 @@ pip install -r requirements.txt
 ## Important notes
 It's highly recommended your images to be in PNG format and have transparency already. If it doesn't, you can use the script's AI image cutout feature for background removal. It also has a fallback dumb background remover but is not recommended. Read on for more details.
 If the image doesn't uphold a quality transparency to your tastes, consider the following:
-1. **Use a different AI model**: check out available models at [rembg](https://github.com/danielgatis/rembg)'s documentation. You can specify a different model using the `--model` option. NOTE: models are downloaded automatically, be aware they can be large (hundreds of MBs).
+1. **Use this script with a different AI model**: check out available models at [rembg](https://github.com/danielgatis/rembg)'s documentation. You can specify a different model using the `--model` option. NOTE: models are downloaded automatically, be aware they can be large (hundreds of MBs).
 2. **Use an online background remover**: Websites like `withoutbg.com` or `pixlr.com` can automatically remove backgrounds from images, making them transparent.
 3. **Ask the original creator**: If you have access to the original image files, ask the creator to provide a version with a transparent background.
 4. If you get your images from imageboards like `gelbooru.com` you can use the tag `transparent_background` or similar to have transparency from origin.
 5. **Use a photo editing tool**: Open your image in software like Photoshop, GIMP, Krita or an online editor. Use the magic wand or lasso tool to select the background and delete it, leaving a transparent layer.
-6. Once you have your images with transparency, use the tool with the `--only-transparent`  or `-ot` option to replace only the transparent areas with gradients or patterns.
+6. Once you have your images with transparency already included, use the tool with the `--only-transparent`  or `-ot` option to replace only the transparent areas with gradients or patterns.
 
 ## Automatic Background Removal
 The script includes an AI-powered background removal feature that works well for images with clear subjects. It is turned on by default. It uses the `rembg` library to automatically detect and remove backgrounds, it works pretty well for most images but is not perfect.
