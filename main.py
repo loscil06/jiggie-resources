@@ -9,8 +9,9 @@ from pathlib import Path
 import click
 import numpy as np
 from jinja2 import Template
-from PIL import Image, ImageDraw, ImageColor, ImageFilter
 from wgpu_shadertoy import Shadertoy
+from rembg import new_session, remove
+from PIL import Image, ImageDraw, ImageColor, ImageFilter
 
 # Supported styles
 STYLES = ['gradient', 'liquid', 'voronoi', 'topographic', 'spiral', 'squiggle', 'mesh', 'scales', 'watercolor']
@@ -54,6 +55,8 @@ ORIENTATIONS = {
     "diagonal": 45,
     "diagonal-reverse": 135
 }
+
+ANIME_MODEL = "isnet-anime"  # Default rembg model for anime-style images
 
 
 def hex_to_rgb(hex_color):
@@ -421,53 +424,36 @@ def refine_mask(alpha_channel, close_radius=2, median_radius=1):
     return eroded.filter(ImageFilter.MedianFilter(median_size))
 
 
-def remove_background(img, bg_color, fuzziness, refine=False, close_radius=2, median_radius=1, only_transparent=False):
+def dumb_remove_background(img, bg_color, fuzziness, refine=False, close_radius=2, median_radius=1):
     """
     Process image background based on mode:
     - only_transparent: Only replace fully transparent pixels (preserves all colors)
     - Normal mode: Remove specified background color with fuzziness
     """
-    # Convert to RGBA if not already
-    if img.mode != 'RGBA':
-        img = img.convert('RGBA')
-
     alpha_data = []
-
     new_data = []
-    if only_transparent:
-        # Only process fully transparent pixels
-        datas = img.getdata()
-        for item in datas:
-            r, g, b, a = item
-            # Preserve all existing colors
-            # Only fully transparent pixels will be replaced
-            new_data.append((r, g, b, a))
-            alpha_data.append(a)
+    datas = img.getdata()
+    bg_rgb = hex_to_rgb(bg_color)
 
-    else:
-        # Normal background removal process
-        datas = img.getdata()
-        bg_rgb = hex_to_rgb(bg_color)
+    # Calculate fuzziness threshold
+    threshold = (fuzziness / 100) * 255
+    threshold_sq = threshold ** 2
 
-        # Calculate fuzziness threshold
-        threshold = (fuzziness / 100) * 255
-        threshold_sq = threshold ** 2
+    for item in datas:
+        r, g, b, a_orig = item
 
-        for item in datas:
-            r, g, b, a_orig = item
+        # Calculate distance from background color
+        distance_sq = (bg_rgb[0] - r) ** 2 + (bg_rgb[1] - g) ** 2 + (bg_rgb[2] - b) ** 2
 
-            # Calculate distance from background color
-            distance_sq = (bg_rgb[0] - r) ** 2 + (bg_rgb[1] - g) ** 2 + (bg_rgb[2] - b) ** 2
+        # Preserve existing transparency by default
+        new_alpha = a_orig
 
-            # Preserve existing transparency by default
-            new_alpha = a_orig
+        # If pixel matches background (with fuzziness), make transparent
+        if distance_sq <= threshold_sq:
+            new_alpha = 0
 
-            # If pixel matches background (with fuzziness), make transparent
-            if distance_sq <= threshold_sq:
-                new_alpha = 0
-
-            new_data.append((r, g, b, new_alpha))
-            alpha_data.append(new_alpha)
+        new_data.append((r, g, b, new_alpha))
+        alpha_data.append(new_alpha)
 
     img.putdata(new_data)
 
@@ -504,20 +490,26 @@ def parse_orientation(value):
 
 
 @click.command()
+@click.option("--dumb-cutout", default=False, is_flag=True,
+              help="Make a dumb cutout without rembg (AI/deep learning model), useful for images with no transparency and simple colored background, usually white. Used with --fuzziness and --bgcolor.")
 @click.option("--fuzziness", default=1, type=click.IntRange(1, 100),
-              help="Background removal sensitivity (1-100%%, default: 1) - Ignored in only-transparent mode")
+              help="Background removal sensitivity (1-100%%, default: 1) - Used only with --dumb-cutout")
+@click.option("--bgcolor", default="#ffffff",
+              help="Background color to remove (hex format, default: #ffffff) - Used only with --dumb-cutout")
+@click.option("--refine-mask", "refine_mask_arg", is_flag=True,
+              help="Apply intelligent mask refinement to clean edges and fill holes - Used only with --dumb-cutout")
+@click.option("--close-radius", default=2, type=click.IntRange(0, 10),
+              help="Mask closing radius for filling holes (0-10, default: 2) - Used only with --dumb-cutout")
+@click.option("--median-radius", default=1, type=click.IntRange(0, 5),
+              help="Median filter radius for smoothing edges (0-5, default: 1) - Used only with --dumb-cutout")
+@click.option("--ai-cutout", default=True, is_flag=True,
+              help="Use AI-based background removal (rembg) instead of dumb cutout")
+@click.option("--ai-model", default=ANIME_MODEL,
+              help="AI model to use for background removal (default: isnet-anime, can be u2net, isnet-anime, etc.). Only used with --ai-cutout.")
 @click.option("--gradient", default=None,
               help="Preset name or custom gradient (#hex,#hex or #hex,#hex,#hex)")
-@click.option("--bgcolor", default="#ffffff",
-              help="Background color to remove (hex format, default: #ffffff) - Ignored in only-transparent mode")
 @click.option("--overwrite", is_flag=True,
               help="Overwrite existing output files")
-@click.option("--refine-mask", "refine_mask_arg", is_flag=True,
-              help="Apply intelligent mask refinement to clean edges and fill holes")
-@click.option("--close-radius", default=2, type=click.IntRange(0, 10),
-              help="Mask closing radius for filling holes (0-10, default: 2)")
-@click.option("--median-radius", default=1, type=click.IntRange(0, 5),
-              help="Median filter radius for smoothing edges (0-5, default: 1)")
 @click.option("--only-transparent", "-ot", is_flag=True,
               help="ONLY replace transparent background, preserve all colored pixels (including white)")
 @click.option("--orientation", "-o", default="vertical",
@@ -534,7 +526,7 @@ def parse_orientation(value):
 @click.argument("imagefiles", nargs=-1, type=click.Path(exists=True))
 def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
          median_radius, only_transparent, orientation, style,
-         shader_scale, imagefiles, user_gradients, combine_presets):
+         shader_scale, imagefiles, user_gradients, combine_presets, dumb_cutout, ai_cutout, ai_model):
     """
     🎨 GRADIENTIFY - Replace backgrounds with beautiful gradients 🎨
 
@@ -571,6 +563,12 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     --combine-presets           Combine user gradients with built-in presets (default)
     --only-user-gradients       Use only user gradients, ignore built-in presets
 
+    Option Groups:
+    Dumb Cutout Mode:
+      --dumb-cutout         Use simple color-based cutout (no AI/rembg)
+      --fuzziness           Sensitivity for color-based cutout (used with --dumb-cutout)
+      --bgcolor             Background color to remove (used with --dumb-cutout)
+
     Recommended to use transparent PNGs for best results.
 
     Examples:
@@ -597,9 +595,12 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     """
     # Process files
     if not imagefiles:
-        imagefiles = [f for f in os.listdir()
-                      if f.lower().endswith(('.png', '.jpg', '.jpeg'))
-                      and "_output_" not in f]
+        imagefiles = [
+            f for f in os.listdir()
+            if f.lower().endswith(('.png', '.jpg', '.jpeg'))
+            and "_output_" not in f  # <-- Do not process already processed images
+            and "_transparent" not in f  # <-- Do not process transparent images
+        ]
 
     # Validate gradient input
     colors = None
@@ -650,9 +651,15 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     except ValueError as e:
         raise click.BadParameter(str(e))
 
+    rembg_session = None
+    if ai_cutout:
+        if ai_model:
+            rembg_session = new_session(model_name=ai_model)
+        else:
+            rembg_session = new_session()
+
     for path in imagefiles:
         try:
-            # Handle images with existing transparency
             with Image.open(path) as img:
                 # Convert to RGBA if needed
                 if img.mode == 'P':
@@ -662,6 +669,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
 
                 # Get base name for output
                 base = os.path.splitext(path)[0]
+                transparent_path = f"{base}_transparent.png"
 
                 # Select gradient if not specified
                 current_preset = preset_name
@@ -676,9 +684,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                     current_preset, current_colors = random.choice(all_gradients)
 
                 # Determine output filename
-                output = f"{base}_output_{current_preset}.png"
-                if style != "gradient":
-                    output = f"{base}_output_{current_preset}_{style}.png"
+                output = f"{base}_output_{current_preset}_{style}.png"
 
                 # Skip existing files unless overwrite is specified
                 if os.path.exists(output) and not overwrite:
@@ -775,15 +781,37 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                         )
 
                 # Process background based on mode
-                transparent_img = remove_background(
-                    img,
-                    bgcolor,
-                    fuzziness,
-                    refine=refine_mask_arg,
-                    close_radius=close_radius,
-                    median_radius=median_radius,
-                    only_transparent=only_transparent
-                )
+                if not dumb_cutout and ai_cutout and rembg_session:
+                    print(f"   └── Using AI-based background removal using model: {ai_model}...")
+                    # Check for existing transparent image
+                    if os.path.exists(transparent_path):
+                        print(f"   └── Found existing transparent image: {transparent_path}")
+                        transparent_img = Image.open(transparent_path).convert('RGBA')
+                    else:
+                        # Use rembg for AI cutout
+                        transparent_img = remove(img, session=rembg_session)
+                        transparent_img.save(transparent_path, format='PNG')
+                        print(f"   └── Saved transparent image: {transparent_path}")
+                elif dumb_cutout:
+                    print(f"   └── Using dumb cutout with fuzziness {fuzziness} and bgcolor {bgcolor}...")
+                    # Use dumb cutout
+                    if not bgcolor.startswith("#"):
+                        raise click.BadParameter("Background color must be in hex format (e.g. #ffffff)")
+                    if not (1 <= fuzziness <= 100):
+                        raise click.BadParameter("Fuzziness must be between 1 and 100")
+                    transparent_img = dumb_remove_background(
+                        img,
+                        bgcolor,
+                        fuzziness,
+                        refine=refine_mask_arg,
+                        close_radius=close_radius,
+                        median_radius=median_radius,
+                    )
+                elif only_transparent:
+                    print("   └── Replacing only transparent pixels...")
+                    # Preserve existing transparency
+                    # Do mostly nothing, just ensure alpha channel is present
+                    transparent_img = img.convert('RGBA')
 
                 # Composite images
                 gradient_img.paste(transparent_img, (0, 0), transparent_img)

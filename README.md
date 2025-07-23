@@ -38,30 +38,48 @@ pip install -r requirements.txt
 ```
 
 ## Important notes
-It's highly recommended your images to be in PNG format and have already transparency. While the script can handle images without transparency with solid color backgrounds, the script will not be able to accurately remove the background in most cases. For best results, use images with transparent backgrounds. Below some recommendations how to make your images transparent:
-1. **Use a photo editing tool**: Open your image in software like Photoshop, GIMP, Krita or an online editor. Use the magic wand or lasso tool to select the background and delete it, leaving a transparent layer.
-2. **Use an online background remover**: Websites like `withoutbg.com` or `pixlr.com` can automatically remove backgrounds from images, making them transparent. Note: some of these websites have limitations on how many you can process per day. Personally, `withoutbg.com` is my favorite.
-3. **Ask the original creator**: If you have access to the original image files, ask the creator to provide a version with a transparent background.
-4. Once you have your images with transparency, use the tool with the `--only-transparent`  or `-ot` option to replace only the transparent areas with gradients or patterns.
+It's highly recommended your images to be in PNG format and have transparency already. If it doesn't, you can use the script's AI image cutout feature for background removal. It also has a fallback dumb background remover but is not recommended. Read on for more details.
+If the image doesn't uphold a quality transparency to your tastes, consider the following:
+1. **Use a different AI model**: check out available models at [rembg](https://github.com/danielgatis/rembg)'s documentation. You can specify a different model using the `--model` option. NOTE: models are downloaded automatically, be aware they can be large (hundreds of MBs).
+2. **Use a photo editing tool**: Open your image in software like Photoshop, GIMP, Krita or an online editor. Use the magic wand or lasso tool to select the background and delete it, leaving a transparent layer.
+3. **Use an online background remover**: Websites like `withoutbg.com` or `pixlr.com` can automatically remove backgrounds from images, making them transparent.
+4. **Ask the original creator**: If you have access to the original image files, ask the creator to provide a version with a transparent background.
+5. If you get your images from imageboards like `gelbooru.com` you can use the tag `transparent_background` or similar to have transparency from origin.
+6. Once you have your images with transparency, use the tool with the `--only-transparent`  or `-ot` option to replace only the transparent areas with gradients or patterns.
 
-### Basic Usage
+## Automatic Background Removal
+The script includes an AI-powered background removal feature that works well for images with clear subjects. It is turned on by default. It uses the `rembg` library to automatically detect and remove backgrounds, it works pretty well for most images but is not perfect.
+Features:
+1. Uses [rembg](https://github.com/danielgatis/rembg) for AI-powered background removal.
+2. The script will try to detect if a image with the postfix "_transparent.png" already exists, and if it does, it will skip the background removal step.
+3. If your image is already transparent, you can use the `--only-transparent` or `-ot` option to replace only the transparent areas with gradients or patterns.
+4. The script will save the resulting transparent image with the postfix "_transparent.png" in the same directory as the original image.
 
-Replace background with default gradient, replacing only transparent areas:
+### Background Removal Example
+
+### Before:
+![Before](./doc/whitebgtest.png)
+### After:
+![After](./doc/whitebgtest_output_weddingdayblues.png)
+
+## Basic Usage
+
+Replace background with default gradient, will remove background automatically:
 ```bash
-python main.py image.png -ot
+python main.py image.png
 ```
 
-Use a specific preset gradient:
+Use a specific preset gradient, using an image with transparency included:
 ```bash
 python main.py --gradient sunset -ot image.png
 ```
 
 Use topographic style with ocean bliss gradient:
 ```bash
-python main.py --style topographic --gradient -ot oceanbliss image.png
+python main.py --style topographic --gradient oceanbliss image.png
 ```
 
-### Advanced Usage
+## Advanced Usage
 
 Batch Processing
 
@@ -75,7 +93,7 @@ Process specific images with custom settings:
 python main.py --style liquid --gradient fireandice -ot image1.png image2.jpg
 ```
 
-### Background Styles
+## Background Styles
 
 1. **Linear/Barycentric (Gradient)** :
 Creates smooth color transitions. Supports linear (2 colors) and barycentric (3 colors) gradients.
@@ -113,13 +131,13 @@ Scales create a fish-like texture with overlapping shapes. Requires 2 or 3 color
 Soft, blended patterns that mimic watercolor painting. Requires 2 or 3 colors.
 ![Alt watercolor example](./doc/7_output_abyssalblue_watercolor.png)
 
-### Advanced Options
+## Advanced Options
 To check out all available options, run the following command:
 ```bash
 python main.py --help
 ```
 
-### User Provided Gradients
+## User Provided Gradients
 You can provide your own gradients using the following JSON format:
 ```json
 {
@@ -144,7 +162,7 @@ python main.py --only-user-gradients image.png -ot
 
 Currently, the program supports only 2-3 color gradients.
 
-Contribution
+## Contribution
 
 Contributions are welcome! Please open an issue or pull request for:
 
