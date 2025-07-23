@@ -109,6 +109,10 @@ Playful squiggly line patterns that add artistic flair. Supports 2-4 colors.
 Scales create a fish-like texture with overlapping shapes. Requires 2 or 3 colors.
 ![Alt scales example](./doc/6_output_paloalto_scales.png)
 
+9. **Watercolor**:
+Soft, blended patterns that mimic watercolor painting. Requires 2 or 3 colors.
+![Alt watercolor example](./doc/7_output_abyssalblue_watercolor.png)
+
 ### Advanced Options
 To check out all available options, run the following command:
 ```bash

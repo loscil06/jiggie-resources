@@ -13,7 +13,7 @@ from PIL import Image, ImageDraw, ImageColor, ImageFilter
 from wgpu_shadertoy import Shadertoy
 
 # Supported styles
-STYLES = ['gradient', 'liquid', 'voronoi', 'topographic', 'spiral', 'squiggle', 'mesh', 'scales']
+STYLES = ['gradient', 'liquid', 'voronoi', 'topographic', 'spiral', 'squiggle', 'mesh', 'scales', 'watercolor']
 
 # Preset gradients separated by color count
 GRADIENTS_2 = {
@@ -299,6 +299,30 @@ def render_scales_shader_background(width, height, colors):
     return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
 
 
+def render_watercolor_shader_background(width, height, colors):
+    rgb_colors = [hex_to_rgb(c) for c in colors]
+    if len(rgb_colors) == 2:
+        color3 = mix_colors(rgb_colors[0], rgb_colors[1], 0.5)
+        rgb_colors.append(color3)
+    color1 = rgb_to_vec3_glsl(rgb_colors[0])
+    color2 = rgb_to_vec3_glsl(rgb_colors[1])
+    color3 = rgb_to_vec3_glsl(rgb_colors[2])
+
+    template_path = resource_path("shaders", "watercolor", "main_watercolor_shader.glsl.j2")
+    with template_path.open("r") as f:
+        template = Template(f.read())
+
+    code = template.render(
+        color1=color1,
+        color2=color2,
+        color3=color3,
+        random1=random.uniform(1, 10000),
+        random2=random.uniform(1, 10000)
+    )
+    shader = Shadertoy(code, resolution=(width, height), offscreen=True)
+    return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
+
+
 def create_linear_gradient(width, height, colors, angle=90):
     """Create linear gradient with customizable angle"""
     img = Image.new('RGB', (width, height))
@@ -515,7 +539,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     🎨 GRADIENTIFY - Replace backgrounds with beautiful gradients 🎨
 
     Features:
-    - Multiple background styles: gradient, shader, topographic, spiral, voronoi, squiggle, mesh, scales
+    - Multiple background styles: gradient, shader, topographic, spiral, voronoi, squiggle, mesh, scales, watercolor
     - Two processing modes: normal background removal OR transparent-only replacement
     - Preserves all colored pixels in --only-transparent mode
     - Handles images with existing transparency
@@ -536,6 +560,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     --style squiggle:     Squiggle shader background
     --style mesh:         Mesh gradient shader (2 or 3 colors, smooth mesh-like blend)
     --style scales:       Scales shader (2 or 3 colors, fish scale pattern)
+    --style watercolor:   Watercolor shader (2 or 3 colors, soft blended effect)
 
     User-defined gradients:
     --user-gradients FILE    Path to a JSON file with gradients in the format:
@@ -735,6 +760,15 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                         if len(current_colors) not in [2, 3]:
                             raise click.BadParameter("Scales shader style requires exactly 2 or 3 colors.")
                         gradient_img = render_scales_shader_background(
+                            img.width,
+                            img.height,
+                            current_colors,
+                        )
+                    case "watercolor":
+                        print("   └── Rendering watercolor shader background...")
+                        if len(current_colors) not in [2, 3]:
+                            raise click.BadParameter("Watercolor shader style requires 2 or 3 colors.")
+                        gradient_img = render_watercolor_shader_background(
                             img.width,
                             img.height,
                             current_colors,
