@@ -105,38 +105,14 @@ Hypnotic spiral patterns that create visual depth. Requires exactly 2 colors.
 Playful squiggly line patterns that add artistic flair. Supports 2-4 colors.
 ![Alt voronoi example](./doc/4_output_goldenlagoon_squiggle.png)
 
+8. **Scales**:
+Scales create a fish-like texture with overlapping shapes. Requires 2 or 3 colors.
+![Alt scales example](./doc/6_output_paloalto_scales.png)
+
 ### Advanced Options
-```text
-Options:
---fuzziness INTEGER RANGE       Background removal sensitivity (1-100%%,
-default: 1) - Ignored in only-transparent
-mode  [1<=x<=100]
---gradient TEXT                 Preset name or custom gradient (#hex,#hex or
-#hex,#hex,#hex)
---bgcolor TEXT                  Background color to remove (hex format,
-default: #ffffff) - Ignored in only-
-transparent mode
---overwrite                     Overwrite existing output files
---refine-mask                   Apply intelligent mask refinement to clean
-edges and fill holes
---close-radius INTEGER RANGE    Mask closing radius for filling holes (0-10,
-default: 2)  [0<=x<=10]
---median-radius INTEGER RANGE   Median filter radius for smoothing edges
-(0-5, default: 1)  [0<=x<=5]
--ot, --only-transparent         ONLY replace transparent background,
-preserve all colored pixels (including
-white)
--o, --orientation TEXT          Gradient orientation: 'vertical' (90°),
-'horizontal' (0°), 'diagonal' (45°),
-'diagonal-reverse' (135°), or custom angle
-(0-360)
---style [gradient|liquid|voronoi|topographic|spiral|squiggle]
-Background style: gradient
-(linear/barycentric), liquid (liquid
-gradient), spiral, topographic (map-like),
-or squiggle
---shader-scale FLOAT            Shader pattern scale (default: 1)
---help                          Show this message and exit.
+To check out all available options, run the following command:
+```bash
+python main.py --help
 ```
 
 ### User Provided Gradients
