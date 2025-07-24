@@ -131,6 +131,10 @@ Scales create a fish-like texture with overlapping shapes. Requires 2 or 3 color
 Soft, blended patterns that mimic watercolor painting. Requires 2 or 3 colors.
 ![Alt watercolor example](./doc/7_output_abyssalblue_watercolor.png)
 
+10. **Hexagons3d**:
+Creates a 3D hexagonal pattern that adds depth and complexity. Requires 2 or 3 colors.
+![Alt hexagons3d example](./doc/8_output_skymint_hexagons3d.png)
+
 ## Advanced Options
 To check out all available options, run the following command:
 ```bash

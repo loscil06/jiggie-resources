@@ -14,7 +14,9 @@ from rembg import new_session, remove
 from PIL import Image, ImageDraw, ImageColor, ImageFilter
 
 # Supported styles
-STYLES = ['gradient', 'liquid', 'voronoi', 'topographic', 'spiral', 'squiggle', 'mesh', 'scales', 'watercolor']
+STYLES = [
+    'gradient', 'liquid', 'voronoi', 'topographic', 'spiral', 'squiggle', 'mesh', 'scales', 'watercolor', "hexagons3d"
+]
 
 # Preset gradients separated by color count
 GRADIENTS_2 = {
@@ -326,6 +328,26 @@ def render_watercolor_shader_background(width, height, colors):
     return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
 
 
+def render_hexagons_3d_shader_background(width, height, colors):
+    rgb_colors = [hex_to_rgb(c) for c in colors]
+    if len(rgb_colors) == 2:
+        color3 = mix_colors(rgb_colors[0], rgb_colors[1], 0.5)
+        rgb_colors.append(color3)
+
+    template_path = resource_path("shaders", "hexagons_3d", "main_hexagons_3d_shader.glsl.j2")
+    with template_path.open("r") as f:
+        template = Template(f.read())
+
+    code = template.render(
+        color1=rgb_to_vec3_glsl(rgb_colors[0]),
+        color2=rgb_to_vec3_glsl(rgb_colors[1]),
+        color3=rgb_to_vec3_glsl(rgb_colors[2]),
+        seed=random.uniform(1, 10000),
+    )
+    shader = Shadertoy(code, resolution=(width, height), offscreen=True)
+    return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
+
+
 def create_linear_gradient(width, height, colors, angle=90):
     """Create linear gradient with customizable angle"""
     img = Image.new('RGB', (width, height))
@@ -553,6 +575,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     --style mesh:         Mesh gradient shader (2 or 3 colors, smooth mesh-like blend)
     --style scales:       Scales shader (2 or 3 colors, fish scale pattern)
     --style watercolor:   Watercolor shader (2 or 3 colors, soft blended effect)
+    --style hexagons3d:   3D hexagon shader background (2 or 3 colors, 3D hexagonal pattern)
 
     User-defined gradients:
     --user-gradients FILE    Path to a JSON file with gradients in the format:
@@ -732,6 +755,15 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                             img.height,
                             current_colors,
                             scale=shader_scale,
+                        )
+                    case "hexagons3d":
+                        print("   └── Rendering 3D hexagons shader background...")
+                        if len(current_colors) > 3:
+                            raise click.BadParameter("Hexagons 3D shader style requires 2 or 3 colors.")
+                        gradient_img = render_hexagons_3d_shader_background(
+                            img.width,
+                            img.height,
+                            current_colors,
                         )
                     case "gradient" if len(current_colors) == 2:
                         gradient_img = create_linear_gradient(
