@@ -135,6 +135,10 @@ Soft, blended patterns that mimic watercolor painting. Requires 2 or 3 colors.
 Creates a 3D hexagonal pattern that adds depth and complexity. Requires 2 or 3 colors.
 ![Alt hexagons3d example](./doc/8_output_skymint_hexagons3d.png)
 
+11. **Triwedges**:
+Triwedges create a triangular tessellation pattern that adds geometric interest. Requires 2 or 3 colors.
+![Alt triwedges example](./doc/9_output_lunada_triwedges.png)
+
 ## Advanced Options
 To check out all available options, run the following command:
 ```bash
