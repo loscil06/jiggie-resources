@@ -565,9 +565,8 @@ def parse_orientation(value):
               help="ONLY replace transparent background, preserve all colored pixels (including white)")
 @click.option("--orientation", "-o", default="vertical",
               help="Gradient orientation: 'vertical' (90°), 'horizontal' (0°), 'diagonal' (45°), 'diagonal-reverse' (135°), or custom angle (0-360)")
-@click.option("--style", default="gradient",
-              type=click.Choice(STYLES, case_sensitive=False),
-              help=f"Background style: {', '.join(STYLES)} (default: gradient)")
+@click.option("--style", type=click.Choice(STYLES, case_sensitive=False),
+              help=f"Background style: {', '.join(STYLES)} (default: randomly selected)")
 @click.option("--shader-scale", default=0.8, type=float,
               help="Shader pattern scale (default: 0.8)")
 @click.option("--user-gradients", type=click.Path(exists=True, dir_okay=False),
@@ -583,6 +582,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
 
     Features:
     - Multiple background styles: gradient, shader, topographic, spiral, voronoi, squiggle, mesh, scales, watercolor
+    - AI Cutout: Use rembg for intelligent background removal. Dumb cutout mode available for simple backgrounds, not reccommended though.
     - Two processing modes: normal background removal OR transparent-only replacement
     - Preserves all colored pixels in --only-transparent mode
     - Handles images with existing transparency
@@ -606,6 +606,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     --style watercolor:   Watercolor shader (2 or 3 colors, soft blended effect)
     --style hexagons3d:   3D hexagon shader background (2 or 3 colors, 3D hexagonal pattern)
     --style triwedges:    Triangular wedges shader background (2 or 3 colors, triangular pattern)
+    If no style is specified, a random style will be chosen.
 
     User-defined gradients:
     --user-gradients FILE    Path to a JSON file with gradients in the format:
@@ -727,6 +728,11 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                 # Select gradient if not specified
                 current_preset = preset_name
                 current_colors = colors
+
+                if not style:
+                    # Randomly select a style if not specified
+                    style = random.choice(STYLES)
+                    print(f"🔀 No style specified, style set to: {style}")
 
                 if not current_colors and not gradient:
                     # Pick a random gradient for this image
