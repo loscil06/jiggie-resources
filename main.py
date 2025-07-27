@@ -26,7 +26,7 @@ STYLES = [
     'watercolor',
     'hexagons3d',
     'triwedges',
-    'cacti',  # <-- Added cacti
+    'cacti',
 ]
 
 # Preset gradients separated by color count
@@ -590,7 +590,7 @@ def parse_orientation(value):
               help="ONLY replace transparent background, preserve all colored pixels (including white)")
 @click.option("--orientation", "-o", default="vertical",
               help="Gradient orientation: 'vertical' (90°), 'horizontal' (0°), 'diagonal' (45°), 'diagonal-reverse' (135°), or custom angle (0-360)")
-@click.option("--style", type=click.Choice(STYLES, case_sensitive=False),
+@click.option("--style", type=click.Choice(STYLES + ['random'], case_sensitive=False),
               help=f"Background style: {', '.join(STYLES)} (default: randomly selected)", default='random')
 @click.option("--shader-scale", default=0.8, type=float,
               help="Shader pattern scale (default: 0.8)")
