@@ -26,6 +26,7 @@ STYLES = [
     'watercolor',
     'hexagons3d',
     'triwedges',
+    'cacti',  # <-- Added cacti
 ]
 
 # Preset gradients separated by color count
@@ -377,6 +378,30 @@ def render_triwedges_shader_background(width, height, colors):
     return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
 
 
+def render_cacti_shader_background(width, height, colors):
+    rgb_colors = [hex_to_rgb(c) for c in colors]
+    if len(rgb_colors) == 2:
+        color3 = mix_colors(rgb_colors[0], rgb_colors[1], 0.5)
+        rgb_colors.append(color3)
+    if len(rgb_colors) != 3:
+        raise ValueError("Cacti shader requires 2 or 3 colors.")
+    color1 = rgb_to_vec3_glsl(rgb_colors[0])
+    color2 = rgb_to_vec3_glsl(rgb_colors[1])
+    color3 = rgb_to_vec3_glsl(rgb_colors[2])
+
+    template_path = resource_path("shaders", "cacti", "main_cacti_shader.glsl.j2")
+    with template_path.open("r") as f:
+        template = Template(f.read())
+
+    code = template.render(
+        color1=color1,
+        color2=color2,
+        color3=color3,
+    )
+    shader = Shadertoy(code, resolution=(width, height), offscreen=True)
+    return Image.fromarray(np.asarray(shader.snapshot(time_float=0.0)))
+
+
 def create_linear_gradient(width, height, colors, angle=90):
     """Create linear gradient with customizable angle"""
     img = Image.new('RGB', (width, height))
@@ -566,7 +591,7 @@ def parse_orientation(value):
 @click.option("--orientation", "-o", default="vertical",
               help="Gradient orientation: 'vertical' (90°), 'horizontal' (0°), 'diagonal' (45°), 'diagonal-reverse' (135°), or custom angle (0-360)")
 @click.option("--style", type=click.Choice(STYLES, case_sensitive=False),
-              help=f"Background style: {', '.join(STYLES)} (default: randomly selected)")
+              help=f"Background style: {', '.join(STYLES)} (default: randomly selected)", default='random')
 @click.option("--shader-scale", default=0.8, type=float,
               help="Shader pattern scale (default: 0.8)")
 @click.option("--user-gradients", type=click.Path(exists=True, dir_okay=False),
@@ -581,7 +606,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     🎨 GRADIENTIFY - Replace backgrounds with beautiful gradients 🎨
 
     Features:
-    - Multiple background styles: gradient, shader, topographic, spiral, voronoi, squiggle, mesh, scales, watercolor
+    - Multiple background styles: gradient, shader, topographic, spiral, voronoi, squiggle, mesh, scales, watercolor, triangles, cacti
     - AI Cutout: Use rembg for intelligent background removal. Dumb cutout mode available for simple backgrounds, not reccommended though.
     - Two processing modes: normal background removal OR transparent-only replacement
     - Preserves all colored pixels in --only-transparent mode
@@ -606,6 +631,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
     --style watercolor:   Watercolor shader (2 or 3 colors, soft blended effect)
     --style hexagons3d:   3D hexagon shader background (2 or 3 colors, 3D hexagonal pattern)
     --style triwedges:    Triangular wedges shader background (2 or 3 colors, triangular pattern)
+    --style cacti:        Cacti shader (2 or 3 colors, stylized cacti pattern)
     If no style is specified, a random style will be chosen.
 
     User-defined gradients:
@@ -728,22 +754,23 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                 # Select gradient if not specified
                 current_preset = preset_name
                 current_colors = colors
+                current_style = style
 
-                if not style:
+                if style == 'random':
                     # Randomly select a style if not specified
-                    style = random.choice(STYLES)
-                    print(f"🔀 No style specified, style set to: {style}")
+                    current_style = random.choice(STYLES)
+                    print(f"🔀 No style specified, style set to: {current_style}")
 
                 if not current_colors and not gradient:
                     # Pick a random gradient for this image
-                    if style in {"voronoi", "spiral", "liquid"}:
+                    if current_style in {"voronoi", "spiral", "liquid"}:
                         all_gradients = list(all_gradients_2.items())
                     else:
                         all_gradients = list(all_gradients_2.items()) + list(all_gradients_3.items())
                     current_preset, current_colors = random.choice(all_gradients)
 
                 # Determine output filename
-                output = f"{base}_output_{current_preset}_{style}.png"
+                output = f"{base}_output_{current_preset}_{current_style}.png"
 
                 # Skip existing files unless overwrite is specified
                 if os.path.exists(output) and not overwrite:
@@ -754,7 +781,7 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                 print(f"🔧 Processing {path} [{mode}] with gradient: {current_preset} ({style} style)...")
 
                 # Create background based on style
-                match style:
+                match current_style:
                     case "liquid":
                         print("   └── Rendering liquid gradient background...")
                         if len(current_colors) != 2:
@@ -852,6 +879,15 @@ def main(fuzziness, gradient, bgcolor, overwrite, refine_mask_arg, close_radius,
                         if len(current_colors) not in [2, 3]:
                             raise click.BadParameter("Watercolor shader style requires 2 or 3 colors.")
                         gradient_img = render_watercolor_shader_background(
+                            img.width,
+                            img.height,
+                            current_colors,
+                        )
+                    case "cacti":
+                        print("   └── Rendering cacti shader background...")
+                        if len(current_colors) not in [2, 3]:
+                            raise click.BadParameter("Cacti shader style requires 2 or 3 colors.")
+                        gradient_img = render_cacti_shader_background(
                             img.width,
                             img.height,
                             current_colors,

@@ -139,6 +139,10 @@ Creates a 3D hexagonal pattern that adds depth and complexity. Requires 2 or 3 c
 Triwedges create a triangular tessellation pattern that adds geometric interest. Requires 2 or 3 colors.
 ![Alt triwedges example](./doc/9_output_lunada_triwedges.png)
 
+12. **Cacti**:
+Cacti, desert-inspired pattern with overlapping shapes. Requires 2 or 3 colors.
+![Alt cacti example](./doc/10_output_earthly_cacti.png)
+
 ## Advanced Options
 To check out all available options, run the following command:
 ```bash

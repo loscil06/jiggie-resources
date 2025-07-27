@@ -1,0 +1,39 @@
+const float scroll = 2.0;
+
+const vec3 color1 = {{ color1 }};
+const vec3 color2 = {{ color2 }};
+const vec3 color3 = {{ color3 }};
+
+const int arr_len = 6;
+const float a[arr_len] = float[](1.5, 1.5, 0.5, 1.5, 2.5, 2.5);
+const float b[arr_len] = float[](0.5, 1.5, 2.5, 2.5, 2.5, 3.5);
+
+bool cactus(vec2 pos) {
+    float X = floor((5.0 * pos.x - 2.0 * pos.y + 7.0) / 18.0);
+    float Y = floor((4.0 * pos.y - pos.x + 4.0) / 18.0);
+
+    for (int i = 0; i < arr_len; i++) {
+        if (abs(pos.x - 4.0 * X - 2.0 * Y - a[i]) <= 0.5 &&
+        abs(pos.y - X - 5.0 * Y - b[i]) <= 0.5) {
+            return true;
+        }
+    }
+    return false;
+}
+
+const float res = 15.0;
+void mainImage(out vec4 fragColor, in vec2 fragCoord)
+{
+    vec2 uv = fragCoord / min(iResolution.x, iResolution.y) * res + iTime * scroll;
+
+    vec3 col = color1;
+    if (cactus(uv)) {
+        col = color2;
+    } else {
+        if (cactus(uv + vec2(2.0))) {
+            col = color3;
+        }
+    }
+
+    fragColor = vec4(col, 1.0);
+}

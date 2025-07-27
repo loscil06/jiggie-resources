@@ -1,4 +1,4 @@
-vec2 scale = vec2(1./8., 1./8.);
+vec2 scale = vec2(1./14., 1./14.);
 
 const float iSeed = {{ seed }}; // seed should be between 1 and 10000.
 #define ROW_OFFSET
@@ -25,15 +25,18 @@ float hash21(vec2 p){
 }
 
 
-float hm(in vec2 p, inout float tm){
+{#float hm(in vec2 p, inout float tm){
     float rnd = hash21(p + .13 + iSeed);
     tm = mod(rnd*8. + iTime*4./6.2831, 8.);
     tm = (tm<1.)? tm : 0.;
     float waveHeight = dot(sin(p*1.4 - cos(p.yx*2.2 + mod(iTime, 6.2831))*2.), vec2(.25)) + .5;
     float h = .5 - cos(tm*6.2831)*.5;
     return (h/4. + .25)*waveHeight + h;
+}#}
+float hm(in vec2 p, inout float tm){
+    tm = 0.0;
+    return 0.0; // No height modulation, all hexagons flat
 }
-
 
 float opExtrusion(in float sdf, in float pz, in float h){
     vec2 w = vec2(sdf, abs(pz) - h);
@@ -89,8 +92,8 @@ vec4 blocks(vec3 q3){
         dir *= (hash21(idi +.05)<.5)? 2. : 1.;
         float delay = .175;
         const float totRot = 3.14159;
-        mat2 cR = (abs(tm - .5)<.5 - delay)?
-        rot2(dir*(tm - delay)/(1. - delay*2.)*totRot) : mat2(1, 0, 0, 1);
+        // mat2 cR = (abs(tm - .5)<.5 - delay) ? rot2(dir*(tm - delay)/(1. - delay*2.)*totRot) : mat2(1, 0, 0, 1);
+        mat2 cR = mat2(1, 0, 0, 1); // No rotation, disables flipping
         vec3 p3 = vec3(p, q3.z + (h*scale.y*2. - (l.y/2. - .02)*1.));
         p3.yz *= cR;
         const float ew = .0125;
@@ -240,7 +243,7 @@ void mainImage( out vec4 fragColor, in vec2 fragCoord ){
             const vec3 color1 = {{ color1 }};
             const vec3 color2 = {{ color2 }};
             const vec3 color3 = {{ color3 }};
-            float t = fract(hash21(svGID.yz + iSeed)); // or use another property for blending
+            float t = fract((svGID.y + svGID.z) * 0.25);
             if(t < 0.5) {
                 texCol = mix(color1, color2, t * 2.0);
             } else {
